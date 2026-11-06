@@ -1,6 +1,25 @@
-# User-owned data marketplace
+# Hissa
 
-Implementation planning and completed Arkiv validation for ETHGlobal Mumbai.
+> **Platforms profit from your chats. Hissa flips it: you own the data, you set consent, you get paid.**
+
+*Hissa* (हिस्सा) means "share" in Hindi: your share of the value your data creates.
+
+## Project description
+
+Every conversation with an AI assistant or on a messaging app reveals what people want, compare, buy and give up on. That signal is valuable to brands and AI companies, but the people who produce it have no ownership, no real control over consent, and no share of the money. Buyers face the opposite problem: they need real human data, yet scraping is legally risky and comes with no proof of consent.
+
+Hissa is a user-owned data marketplace that connects the two sides.
+
+**For people who provide data.** You upload a chat export (ChatGPT, Claude, WhatsApp, Telegram and more). Your browser keeps only your own messages and masks names, phone numbers and places before anything leaves the device. 0G Private Computer extracts structured insights inside a TEE. The record is encrypted and listed on Arkiv with only coarse public tags, your consent choices and an expiry date. You can revoke consent at any time, and you earn rewards whenever your data is used.
+
+**For AI companies that buy data.** A merchant AI agent discovers listings on Arkiv, then pays for data or insights over x402 on Hedera, on its own and within a spending budget, with no human approval. Every payment is settled on Hedera and logged to an HCS topic. The buyer receives the decrypted, masked data for AI training or an anonymised insight report. Payments flow back to the users who contributed.
+
+**Built on**
+- **0G Private Computer:** private inference on masked text, so raw data is never exposed.
+- **Arkiv:** the only database. Encrypted listings, consent flags, expiry and a public audit trail.
+- **Hedera:** autonomous x402 payments by AI agents, an HCS payment log, and batch payouts to users.
+
+## Docs
 
 - [Current architecture and product scope](docs/architecture.md)
 - [Plan: product, sponsor tracks and decisions](docs/plan-v2.md)
