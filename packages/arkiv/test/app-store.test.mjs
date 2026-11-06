@@ -31,18 +31,18 @@ async function browserSeal(publicKey, plaintext) {
   return hex(Buffer.concat([Buffer.from(await crypto.subtle.exportKey("raw", pair.publicKey)), iv, Buffer.from(encrypted)]));
 }
 
-async function upload() {
+async function upload(recordOverride) {
   const control = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   const controlPublic = hex(new Uint8Array(await crypto.subtle.exportKey("raw", control.publicKey)));
   const deadline = Date.now() + 600000;
   const record = { v: 1, listing_id: "lst_test", consent_deadline: deadline, source: "chatgpt", week: "202645",
-    facets: { age_band: "18–24", mentions: [{ events: ["abandoned"] }] }, excerpts: ["Reviewed masked words [EMAIL]."] };
+    facets: { age_band: "18–24", mentions: [{ events: ["abandoned"] }] }, excerpts: ["Reviewed masked words [EMAIL]."], ...recordOverride };
   const recordKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, recordKey, Buffer.from(JSON.stringify(record)));
   const listing = {
     listing_id: "lst_test", domain: "beauty", region: "IN-west", source: "chatgpt", week: "202645", quality_tier: "silver",
-    consent_insights: false, consent_sale: true, price: "100000000", envelope_format: "application/vnd.arkiv.encrypted.v1",
+    consent_insights: true, consent_sale: true, price: "100000000", envelope_format: "application/vnd.arkiv.encrypted.v1",
     ciphertext: hex(Buffer.concat([iv, Buffer.from(encrypted)])),
     wrapped_key: await browserSeal(service.publicKey, new Uint8Array(await crypto.subtle.exportKey("raw", recordKey))),
     sealed_seller: await browserSeal(service.publicKey, Buffer.from(JSON.stringify({
@@ -170,4 +170,18 @@ test("the mounted app API publishes, browses and revokes with signed requests", 
   const deleted = await app.request("/api/listings/lst_test", request("DELETE", { version: 0, signature: await input.sign("revoke", 0, {}) }));
   assert.equal(deleted.status, 200);
   assert.equal((await app.request("/api/listings/lst_test")).status, 404);
+});
+
+test("v2 records carry the whole masked chat gzipped; buyers and insights read all of it", async () => {
+  const { gzipSync } = await import("node:zlib");
+  const full = Array.from({ length: 400 }, (_, i) => `line ${i} masked [PERSON_1] talks about serums`).join("\n");
+  const { store } = fixture();
+  const input = await upload({ v: 2, excerpts: ["line 0 preview"], text_gzip: gzipSync(full).toString("base64") });
+  await store.publish(input.request);
+  assert.equal((await store.readRecord("lst_test")).excerpt, full);
+  const cohort = await store.insightCohort({ domain: "beauty" });
+  assert.equal(cohort.length, 1);
+  assert.ok(cohort[0].excerpts[0].length <= 1300, "analysis input stays small");
+  assert.match(cohort[0].excerpts[0], /line 0 masked/);
+  assert.match(cohort[0].excerpts[0], /line 3\d\d masked/, "sample is spread across the whole chat");
 });

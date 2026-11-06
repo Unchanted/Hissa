@@ -157,7 +157,7 @@ const setStatus = (s: Partial<NerStatus>) => {
 };
 let worker: Worker | null = null;
 let seq = 0;
-const pending = new Map<number, { resolve: (t: NerToken[][]) => void; reject: (e: Error) => void }>();
+const pending = new Map<number, { resolve: (t: NerToken[][]) => void; reject: (e: Error) => void; progress?: (done: number, total: number) => void }>();
 
 /** Starts downloading and loading the model in the worker. Safe to call many times. */
 export function preloadNer(): void {
@@ -175,8 +175,10 @@ export function preloadNer(): void {
       | { type: "progress"; pct: number; loaded: number; total: number }
       | { type: "ready" }
       | { type: "error"; message: string; id?: number }
-      | { type: "result"; id: number; tokens: NerToken[][] };
-    if (m.type === "progress") setStatus({ pct: Math.round(m.pct), loadedMb: m.loaded / 1e6, totalMb: m.total / 1e6 });
+      | { type: "result"; id: number; tokens: NerToken[][] }
+      | { type: "chunk"; id: number; done: number; total: number };
+    if (m.type === "chunk") pending.get(m.id)?.progress?.(m.done, m.total);
+    else if (m.type === "progress") setStatus({ pct: Math.round(m.pct), loadedMb: m.loaded / 1e6, totalMb: m.total / 1e6 });
     else if (m.type === "ready") setStatus({ state: "ready", pct: 100, ms: Math.round(performance.now() - started) });
     else if (m.type === "result") {
       pending.get(m.id)?.resolve(m.tokens);
@@ -220,16 +222,16 @@ function waitReady(timeoutMs: number): Promise<boolean> {
   });
 }
 
-function runModel(chunks: string[]): Promise<NerToken[][]> {
+function runModel(chunks: string[], progress?: (done: number, total: number) => void): Promise<NerToken[][]> {
   return new Promise((resolve, reject) => {
     const id = ++seq;
-    pending.set(id, { resolve, reject });
+    pending.set(id, { resolve, reject, ...(progress ? { progress } : {}) });
     worker!.postMessage({ type: "run", id, chunks });
   });
 }
 
 /** Masks text on the device: rules always, plus the NER model when it is available. */
-export async function maskOnDevice(text: string, opts: { timeoutMs?: number } = {}): Promise<MaskResult> {
+export async function maskOnDevice(text: string, opts: { timeoutMs?: number; onProgress?: (done: number, total: number) => void } = {}): Promise<MaskResult> {
   preloadNer();
   const found = ruleMatches(text);
   const ok = await waitReady(opts.timeoutMs ?? 60_000);
@@ -242,7 +244,7 @@ export async function maskOnDevice(text: string, opts: { timeoutMs?: number } = 
   }
   try {
     const chunks = chunkText(text);
-    const tokens = await runModel(chunks);
+    const tokens = await runModel(chunks, opts.onProgress);
     chunks.forEach((c, i) => found.push(...entitiesIn(c, tokens[i] ?? [])));
     return { ...applyMask(text, found), mode: "model" };
   } catch (e) {

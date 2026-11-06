@@ -203,25 +203,33 @@ function Upload({ onDone }: { onDone: (chat: ChatData) => void }) {
 
 /* ------------------------------ 2 Mask on device + 0G classify ------------------------------ */
 
-/** On-device masking runs on the first part of a long export; 0G accepts at most 60,000 characters. */
-const MASK_LIMIT = 12_000;
+/** 0G classifies a sample of the masked text; the full masked text is stored encrypted on Arkiv. */
+const ZG_SAMPLE_CHARS = 12_000;
+/** Chat lines drawn on screen; masking always covers every message. */
+const DISPLAY_LINES = 300;
+
+/** Lines spread evenly across the whole chat, up to `max` characters, in their original order. */
+function spreadSample(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const lines = text.split("\n").filter((l) => l.trim());
+  const avg = text.length / Math.max(lines.length, 1);
+  const step = Math.max(1, Math.ceil((lines.length * avg) / max));
+  const out: string[] = [];
+  let n = 0;
+  for (let i = 0; i < lines.length && n < max; i += step) {
+    out.push(lines[i]!);
+    n += lines[i]!.length + 1;
+  }
+  return out.join("\n");
+}
 
 function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => void }) {
   const { addReceipt } = useStore();
   const { zg } = useLive();
   const ner = useNerStatus();
-  const selfLines = useMemo(() => {
-    const out: string[] = [];
-    let n = 0;
-    for (const line of chat.lines) {
-      if (line.role !== "self") continue;
-      if (n + line.text.length > MASK_LIMIT && out.length) break;
-      out.push(line.text);
-      n += line.text.length;
-    }
-    return out;
-  }, [chat]);
-  const truncated = selfLines.length < chat.lines.filter((l) => l.role === "self").length;
+  const selfLines = useMemo(() => chat.lines.filter((l) => l.role === "self").map((l) => l.text), [chat]);
+  const [maskPct, setMaskPct] = useState(0);
+  const [sampled, setSampled] = useState(false);
   const [phase, setPhase] = useState(0); // 1 drop others · 2 masked · 3 0G · 4 done
   const [mask, setMask] = useState<MaskResult | null>(null);
   const [maskedText, setMaskedText] = useState("");
@@ -236,7 +244,7 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
   useOnce(() => {
     const t0 = Date.now();
     setTimeout(() => setPhase(1), 700);
-    void maskOnDevice(selfLines.join("\n")).then(async (r) => {
+    void maskOnDevice(selfLines.join("\n"), { timeoutMs: 120_000, onProgress: (d, t) => setMaskPct(Math.round((d / t) * 100)) }).then(async (r) => {
       const wait = 1600 - (Date.now() - t0);
       if (wait > 0) await sleep(wait);
       setMask(r);
@@ -260,8 +268,10 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
       setPhase(4);
       return;
     }
+    const sample = spreadSample(maskedText, ZG_SAMPLE_CHARS);
+    setSampled(sample.length < maskedText.length);
     api
-      .analyseUpload(maskedText)
+      .analyseUpload(sample)
       .then((result) => {
         setFacets(result.facets);
         setZgDone({ reqId: result.receipt.request_id, note: teeLabel(result.receipt) });
@@ -296,8 +306,7 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
         }
       >
         <div className="chat">
-          {chat.lines.map((line, i) => {
-            if (line.role === "self" && selfIndex >= selfLines.length) return null;
+          {chat.lines.slice(0, DISPLAY_LINES).map((line, i) => {
             const dropped = phase >= 1 && line.role !== "self";
             const mine = line.role === "self" ? selfIndex++ : -1;
             const parts = mine >= 0 && mask ? partsOf(selfLines[mine]!, spans) : [line.text];
@@ -317,8 +326,21 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
             );
           })}
         </div>
-        {phase < 2 && <p className="muted ner-note">Masking on this device{ner.state === "loading" ? ` · loading model ${ner.pct}%` : "…"}</p>}
-        {truncated && <p className="muted ner-note">Long export: the first {selfLines.length} of your messages are used.</p>}
+        {chat.lines.length > DISPLAY_LINES && (
+          <p className="muted ner-note">
+            Showing the first {DISPLAY_LINES} of {chat.lines.length} messages · all {selfLines.length} of yours are masked
+          </p>
+        )}
+        {phase < 2 && (
+          <p className="muted ner-note">
+            Masking on this device{ner.state === "loading" ? ` · loading model ${ner.pct}%` : maskPct ? ` · ${maskPct}%` : "…"}
+          </p>
+        )}
+        {sampled && phase >= 3 && (
+          <p className="muted ner-note">
+            0G read a {ZG_SAMPLE_CHARS.toLocaleString("en-IN")}-character sample spread across your {maskedText.length.toLocaleString("en-IN")} masked characters; all of it is stored encrypted.
+          </p>
+        )}
         {mask?.warning && (
           <p className="ner-warn" role="alert">
             {mask.warning}
@@ -376,12 +398,22 @@ function NerBadge() {
 
 type TgState = "off" | "linking" | "linked";
 
+/** Coarse, self-declared region tag; masking hides place names, so 0G cannot infer it. */
+const REGION_CHOICES = [
+  ["IN", "India"],
+  ["IN-west", "West"],
+  ["IN-north", "North"],
+  ["IN-south", "South"],
+  ["IN-east", "East"],
+] as const;
+
 function Publish({ chat, review, initialDraft, onDone }: { chat?: ChatData; review?: Review; initialDraft?: PendingDraft; onDone: () => void }) {
   const { update, addReceipt } = useStore();
   const [sale, setSale] = useState(initialDraft?.consentSale ?? true);
   const [insights, setInsights] = useState(initialDraft?.consentInsights ?? true);
   const [tg, setTg] = useState<TgState>(initialDraft?.consentContact ? "linked" : "off");
   const [days, setDays] = useState(initialDraft?.expiryDays ?? 30);
+  const [region, setRegion] = useState(initialDraft?.region ?? (chat?.sample ? "IN-west" : "IN"));
   const [sealing, setSealing] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
@@ -414,7 +446,7 @@ function Publish({ chat, review, initialDraft, onDone }: { chat?: ChatData; revi
         const metadata = {
           source: chat.source,
           domain,
-          region: chat.sample ? "IN-west" : "IN",
+          region,
           week: isoWeek(),
           expiryDays: days,
           consentSale: sale,
@@ -481,7 +513,7 @@ function Publish({ chat, review, initialDraft, onDone }: { chat?: ChatData; revi
 
   const tags = [
     ["domain", review ? domainOf(review.facets.domain_path) : draft?.domain ?? "other"],
-    ["region", draft?.region ?? (chat?.sample ? "IN-west" : "IN")],
+    ["region", draft?.region ?? region],
     ["week", draft?.week ?? isoWeek()],
     ["price", `${PRICES.record} ℏ`],
     ["consent_sale", String(draft?.consentSale ?? sale)],
@@ -514,6 +546,14 @@ function Publish({ chat, review, initialDraft, onDone }: { chat?: ChatData; revi
                   : `Via Telegram · ${PRICES.contact} ℏ per message`
             }
           />
+          <div className="days">
+            <small className="muted">Region</small>
+            {REGION_CHOICES.map(([id, label]) => (
+              <button key={id} className={id === region ? "on" : ""} onClick={() => setRegion(id)} disabled={!!prepared || publishing} title={id}>
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="days">
             <small className="muted">Expires in</small>
             {[7, 30, 90, 180].map((d) => (

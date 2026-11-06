@@ -38,7 +38,8 @@ self.onmessage = async (ev: MessageEvent<{ type: "load" } | { type: "run"; id: n
   try {
     const pipe = await load();
     const tokens: unknown[] = [];
-    for (const chunk of m.chunks) {
+    for (const [i, chunk] of m.chunks.entries()) {
+      if (i % 10 === 0) postMessage({ type: "chunk", id: m.id, done: i, total: m.chunks.length });
       const out = await pipe([chunk], { ignore_labels: ["O"] });
       // One input in, one result out; some versions return the inner array directly.
       const arr = Array.isArray(out) && Array.isArray(out[0]) ? out[0] : out;

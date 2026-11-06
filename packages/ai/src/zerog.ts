@@ -8,8 +8,18 @@
 import "dotenv/config";
 
 export const ROUTER_URL = (process.env["ZG_ROUTER_URL"] ?? "https://router-api.0g.ai/v1").replace(/\/$/, "");
-/** Private (TeeML) chat models with JSON output. glm-5.3 has 2 providers; 0gm has 1. */
-export const CHAT_MODELS = ["glm-5.3", "0gm-1.0-35b-a3b"] as const;
+/** Private (TeeML) chat models with JSON output, tried in order. glm-5.3 has 2 providers; 0gm has 1. */
+export const DEFAULT_CHAT_MODELS = ["glm-5.3", "0gm-1.0-35b-a3b"] as const;
+/**
+ * ZG_CHAT_MODELS (comma-separated) overrides the order, e.g. "0gm-1.0-35b-a3b" for cheap
+ * rehearsals. Every model is still called in private (TEE) mode.
+ */
+export const CHAT_MODELS: readonly string[] = (process.env["ZG_CHAT_MODELS"] ?? "")
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean).length
+  ? (process.env["ZG_CHAT_MODELS"] ?? "").split(",").map((m) => m.trim()).filter(Boolean)
+  : DEFAULT_CHAT_MODELS;
 
 /** Evidence for one sealed 0G call. */
 export type InferenceReceipt = {

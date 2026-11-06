@@ -421,7 +421,8 @@ function RecordCard({ c }: { c: Card }) {
             </Chip>
           ))}
         </div>
-        <p>“{c.excerpt}”</p>
+        <p>“{c.excerpt.length > 420 ? `${c.excerpt.slice(0, 400)}…` : c.excerpt}”</p>
+        {c.excerpt.length > 420 && <small className="muted mono">+{(c.excerpt.length - 400).toLocaleString("en-IN")} more characters in the .jsonl download</small>}
       </div>
       {!open && (
         <div className="lock">
