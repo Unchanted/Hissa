@@ -1,0 +1,26 @@
+{
+  "network": "rabdi",
+  "chainId": 7794095,
+  "schema": "datamarket.listing.spike.v1",
+  "writer": "0x0F58223AAfF9C6e2534aaD09a996048175C04C96",
+  "txHash": "0x7b47e50e5ce94848e22489a4d4ce1b2626147463df384376cbac226e4155cf8c",
+  "entityKey": "0x2751c34d1747cc0edd520ab947bd43028cd14f7af85c9ca2ad3f5d8dbf6b9ec8",
+  "expiresAt": "341278",
+  "transactionUrl": "https://rabdi.explorer.arkiv.network/tx/0x7b47e50e5ce94848e22489a4d4ce1b2626147463df384376cbac226e4155cf8c",
+  "ciphertextBytes": 211,
+  "writeMs": 6259,
+  "readAndQueryMs": 2401,
+  "gasUsed": "219256",
+  "feeWei": "219256000000000",
+  "verifiedAt": "2026-11-06T16:18:48.048Z",
+  "checks": [
+    "settled receipt",
+    "fresh-client byte readback",
+    "trusted creator and owner",
+    "creation flags",
+    "expiry",
+    "authenticated decryption",
+    "wrong writer rejected",
+    "multi-field query"
+  ]
+}

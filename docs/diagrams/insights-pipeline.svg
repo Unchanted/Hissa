@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="insights-pipeline-title insights-pipeline-desc">
   <title id="insights-pipeline-title">Insights pipeline (anonymised)</title>
-  <desc id="insights-pipeline-desc">Flowchart showing how a merchant question becomes an anonymised insights report: a spec check and a minimum-cohort check refuse at no charge, otherwise the merchant pays, the 0G TEE labels and clusters the cohort, aggregates are bounded per user and noised, and only the noised report, an Arkiv receipt without contributors, and equal earnings shares leave the system.</desc>
+  <desc id="insights-pipeline-desc">Flowchart showing how a premade merchant analysis becomes an anonymised insights report: a spec check and a minimum-cohort check refuse at no charge, otherwise the merchant pays, the 0G TEE labels and clusters the cohort, aggregates are bounded per user and noised, and only the noised report, an Arkiv receipt without contributors, and equal earnings shares leave the system.</desc>
   <defs>
     <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
     <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
@@ -53,11 +53,11 @@
   <text x="760" y="61" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Refuse — no charge</text>
   <text x="760" y="76" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">no report · nothing to pay</text>
 
-  <!-- 1 · Merchant question → analysis spec (start) -->
+  <!-- 1 · Premade analysis → predefined spec (start) -->
   <rect x="40" y="172" width="240" height="88" rx="20" fill="#f5f5f5"/>
   <rect x="40" y="172" width="240" height="88" rx="20" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
-  <text x="160" y="200" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Merchant question</text>
-  <text x="160" y="220" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">→ analysis spec, built by 0G</text>
+  <text x="160" y="200" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Choose premade analysis</text>
+  <text x="160" y="220" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">→ predefined analysis spec</text>
   <text x="160" y="234" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">cohort filters · subject · metrics</text>
 
   <!-- 2 · Decision: spec allowed? -->

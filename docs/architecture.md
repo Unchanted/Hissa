@@ -1,6 +1,6 @@
 # Architecture and data flow
 
-Companion to [plan-v2.md](plan-v2.md). Diagrams live in [diagrams/](diagrams/) as SVG (embedded below) and self-contained HTML. This document explains how data moves through the system, what Arkiv can and cannot do for us, and how the analytics (insights) pipeline works. The analytics part is a rough sketch, not a specification. Items tagged **verify:** are assumptions not yet tested.
+This is the source of truth for the current architecture; [plan-v2.md](plan-v2.md) is partly outdated. Diagrams live in [diagrams/](diagrams/) as SVG (embedded below) and self-contained HTML. This document explains how data moves through the system, what Arkiv can and cannot do for us, and how the analytics (insights) pipeline works. The analytics part is a rough sketch, not a specification. Items tagged **verify:** are assumptions not yet tested.
 
 ## 1. Two products, two privacy treatments
 
@@ -104,6 +104,8 @@ The server sees masked text whenever it decrypts. This follows from the approved
 
 Facet extraction needs an LLM, which is too heavy for most browsers. The default is the 0G private (TEE) route on **masked** text, with a regex and keyword fallback on the device. A user who refuses any upload-time inference still gets masking and coarse tags; their listings simply have fewer facets.
 
+For the hackathon, keep the existing single review after facet extraction and before encryption/publication. A separate masked-text review before sending to 0G is deferred. On the opted-in route, masked text leaves the device before that final review; raw exports stay local.
+
 ### 4.2 Record purchase (pseudonymised)
 
 ![Record purchase (pseudonymised)](diagrams/purchase-sequence.svg)
@@ -116,12 +118,16 @@ Facet extraction needs an LLM, which is too heavy for most browsers. The default
 
 [Full-page HTML version](diagrams/insights-pipeline.html)
 
+**Hackathon scope (confirmed 2026-11-06):** merchants choose from premade, supported analysis options and their allowed cohort filters. Each option maps to a predefined analysis spec; arbitrary merchant instructions are not executed. Include an **Other — coming soon** option describing future English-query support, but do not implement free-text query input, interpretation or execution yet. 0G still performs the selected analysis's query-time labelling, theme naming and report writing.
+
 Why decrypt on demand instead of keeping a decrypted analytics database:
-- **Revoke and expiry just work.** An expired or deleted listing is no longer returned by Arkiv, and a revoked listing's wrapped key is gone. No eviction job is needed, which matters because Arkiv emits no expiry event.
+- **Revoke and expiry exclude listings from new analyses.** An expired or deleted listing is no longer returned by Arkiv, and a revoked listing's wrapped key is gone. There is no standing plaintext analytics copy to evict. Wrapped-key retention and cleanup are separate from plaintext eviction, because Arkiv emits no expiry event.
 - **No standing plaintext copy** of masked text to leak.
 - **Cost:** a full candidate scan per question. Fine at demo and early scale (keyset paging, 100 rows per page). A cache of decrypted facets, keyed by entity and checked against `$expiresAt` on every read, is a later optimisation.
 
 The price is quoted after the cohort-size check, so a merchant never pays for a refused question. The quote itself does reveal "this cohort has at least k_min users"; that is acceptable and intended.
+
+For the hackathon, eligibility and consent are checked when an analysis starts. Revocation during an in-flight analysis, recomputation and refunds caused by that race are deferred; a running analysis may finish with data already admitted. This does not defer revocation checks for subsequent analyses or record purchases.
 
 ### 4.4 Payouts
 
@@ -176,7 +182,7 @@ Sponsor tracks are the core of the build; requirements and evidence are in [plan
 
 | Sponsor | Where it sits in the flows above | Evidence a judge sees |
 | --- | --- | --- |
-| **0G** (Private Computer) | Upload-time facet extraction (4.1); question → analysis spec, query-time labelling, theme naming and report writing (4.3) | 0G request IDs on the review screen and in every insights report |
+| **0G** (Private Computer) | Upload-time facet extraction (4.1); query-time labelling, theme naming and report writing for premade analyses (4.3) | 0G request IDs on the review screen and in every insights report |
 | **Arkiv** (Build on Arkiv) | `dm.listing` index, consent toggles and expiry (2.1, 2.2); merchant browsing and agent discovery (4.2); `dm.sale` and `dm.insight_receipt` audit trail | Explorer links, writer address, a runnable query, and three app screens that read from Arkiv |
 | **Hedera** (x402 agents) | x402 settlement for records (4.2) and insight reports (4.3); scheduled batch payouts (4.4); HCS topic logging each merchant-agent payment | HashScan links for settled payments, the HCS audit topic and scheduled payout transactions |
 

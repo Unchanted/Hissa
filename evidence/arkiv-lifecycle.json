@@ -1,0 +1,31 @@
+{
+  "startedAt": "2026-11-06T16:24:30.574Z",
+  "checks": [
+    "Non-owner update rejected by live gas estimation with an ownership error; no unauthorized transaction broadcast",
+    "Owner consent patch visible to fresh client; ciphertext unchanged; application denies use; consent-filtered query excludes listing",
+    "Owner deletion makes listing unavailable to getEntity and indexed query",
+    "Short-lived entity readable before expiry; unavailable to getEntity and indexed query after natural block expiry"
+  ],
+  "transactions": [
+    {
+      "operation": "disable insights consent",
+      "entityKey": "0x2751c34d1747cc0edd520ab947bd43028cd14f7af85c9ca2ad3f5d8dbf6b9ec8",
+      "txHash": "0xffd3191aecef0b4be672bed19818834375287ec97c7a1d94c5001b2fbd1cd35d"
+    },
+    {
+      "operation": "delete synthetic listing",
+      "entityKey": "0x2751c34d1747cc0edd520ab947bd43028cd14f7af85c9ca2ad3f5d8dbf6b9ec8",
+      "txHash": "0xfbca478f3cae5b84f019fec93ae7f518755a25860d23f7edc77ddbfdf7ef1157"
+    },
+    {
+      "operation": "create 20-second synthetic listing",
+      "entityKey": "0xa5aaf95ae280474c0ad9d2410f4af07332d82429dfcef8535520f74bddf6ca05",
+      "txHash": "0xd53312d6eb5f1eed490a31c217e38742ccb2389d723bcf5e1d631afe4beeddd6",
+      "expiresAt": "298273"
+    }
+  ],
+  "status": "passed",
+  "observedExpiryBlock": "298273",
+  "finishedAt": "2026-11-06T16:25:15.773Z",
+  "remainingBalanceWei": "4999357863000000000"
+}
