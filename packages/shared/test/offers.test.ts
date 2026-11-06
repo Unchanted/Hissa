@@ -90,3 +90,21 @@ describe('purpose separation (acceptance #7)', () => {
     }
   });
 });
+
+describe('purpose separation in the app (acceptance #7)', () => {
+  it('slot frame and handoff code import nothing from hygiene, wallets or chain clients', () => {
+    const appSrc = join(import.meta.dirname, '../../../apps/preflight/src');
+    const files = [
+      ...readdirSync(join(appSrc, 'offers')).map((f) => join(appSrc, 'offers', f)),
+      join(appSrc, 'slot.tsx'),
+      join(appSrc, 'handoff.tsx'),
+    ];
+    for (const f of files) {
+      const src = readFileSync(f, 'utf8');
+      expect(src, f).not.toMatch(/from\s+['"][^'"]*hygiene/);
+      expect(src, f).not.toMatch(/import\s+['"][^'"]*hygiene/);
+      expect(src, f).not.toMatch(/from\s+['"](viem|@arkiv-network)/);
+      expect(src, f).not.toMatch(/ethereum|eth_requestAccounts/);
+    }
+  });
+});

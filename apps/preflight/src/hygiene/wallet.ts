@@ -2,7 +2,11 @@
 import { createWalletClient, custom, encodeFunctionData, erc20Abi, type Address, type Hash } from 'viem';
 import { DEPLOYMENT, localChain, publicClient } from './chain.js';
 
-type Eip1193 = { request(args: { method: string; params?: unknown[] }): Promise<unknown>; on?: (e: string, f: (...a: unknown[]) => void) => void };
+type Eip1193 = {
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+  on?: (e: string, f: (...a: unknown[]) => void) => void;
+  removeListener?: (e: string, f: (...a: unknown[]) => void) => void;
+};
 
 export function injected(): Eip1193 | null {
   return ((window as unknown as { ethereum?: Eip1193 }).ethereum ?? null);

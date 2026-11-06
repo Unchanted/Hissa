@@ -96,7 +96,7 @@ export function openHandoff() {
   const url = new URL('/handoff.html', window.location.origin);
   url.searchParams.set('publisher', state.session.msg.publisherId);
   url.searchParams.set('n', handoffNonce);
-  const w = window.open(url.toString(), 'preflight-handoff', 'popup,width=460,height=640');
+  const w = window.open(url.toString(), 'preflight-handoff');
   if (!w) {
     handoffWindow = null;
     set({ handoff: 'blocked' });

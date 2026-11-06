@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PlanDraft, redactionProblem, type ChainFact, type ConfirmedPlan } from '@preflight/shared/hygiene';
 import { ALIASES, DEPLOYMENT, TOKEN_LABEL, readFact } from './chain.js';
 import { confirmDraft, deriveFinding, fmt, loadPlan, savePlan } from './plan.js';
-import { buildRevoke, connect, sendRevoke, switchToLocal, waitReceipt, type RevokePreview } from './wallet.js';
+import { buildRevoke, connect, injected, sendRevoke, switchToLocal, waitReceipt, type RevokePreview } from './wallet.js';
 import { extractPlan, type InferenceOutcome } from './inference.js';
 import { MemoryPanel } from './MemoryPanel.js';
 
@@ -51,6 +51,29 @@ export function App() {
   useEffect(() => {
     void refresh(plan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep account and chain current when the user changes them in the wallet
+  // (for example after an Arkiv save switches the wallet to Rabdi).
+  useEffect(() => {
+    const eth = injected();
+    if (!eth?.on) return;
+    const onAccounts = (...args: unknown[]) => {
+      const accounts = args[0] as string[] | undefined;
+      const account = accounts?.[0];
+      if (!account) return setWallet(null);
+      setWallet((w) => (w ? { ...w, account } : w));
+    };
+    const onChain = (...args: unknown[]) => {
+      const chainId = Number(args[0]);
+      setWallet((w) => (w ? { ...w, chainId } : w));
+    };
+    eth.on('accountsChanged', onAccounts);
+    eth.on('chainChanged', onChain);
+    return () => {
+      eth.removeListener?.('accountsChanged', onAccounts);
+      eth.removeListener?.('chainChanged', onChain);
+    };
   }, []);
 
   const finding = useMemo(() => (plan && plan.status === 'confirmed' ? deriveFinding(plan, fact) : null), [plan, fact]);
@@ -322,7 +345,10 @@ export function App() {
                       <button type="button" className="quiet" onClick={onSwitch}>
                         Switch to chain 31337
                       </button>
-                    )}
+                    )}{' '}
+                    <button type="button" className="quiet" onClick={onConnect}>
+                      Reconnect
+                    </button>
                   </p>
                 ) : (
                   <button type="button" className="quiet" onClick={onConnect}>
