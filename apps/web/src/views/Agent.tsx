@@ -31,9 +31,9 @@ type Card = MarketRecord & { state: CardState; paymentTx?: string; href?: string
 function marketFor(s: State): MarketRecord[] {
   const week = isoWeek();
   const others = OTHER_RECORDS.map((r, i) => ({ ...r, key: `0x${(i + 7).toString(16).repeat(64)}`, week }));
-  const l = s.listing;
-  if (!l || !l.live || !l.consentSale) return others;
-  return [{ ...PRIYA_RECORD, listingId: l.listingId, key: l.entityKey, week, contactOk: l.consentContact }, ...others];
+  const mine = s.listings.filter((l) => l.live && l.consentSale);
+  if (!mine.length) return others;
+  return [...mine.map((l) => ({ ...PRIYA_RECORD, listingId: l.listingId, key: l.entityKey, week, contactOk: l.consentContact })), ...others];
 }
 
 const FILTER_LABEL: Record<keyof Filters, string> = { domain: "domain", age: "age", region: "region", event: "behaviour" };
@@ -220,8 +220,8 @@ export function Agent() {
           continue;
         }
       } else {
-        const l = state.listing;
-        if (!l || l.listingId !== c.listingId || !l.live || !l.consentContact) {
+        const l = state.listings.find((x) => x.listingId === c.listingId);
+        if (!l || !l.live || !l.consentContact) {
           p(`← 403 · ${l && !l.live ? "listing revoked" : "consent_contact=false"} · not charged`, "err");
           continue;
         }

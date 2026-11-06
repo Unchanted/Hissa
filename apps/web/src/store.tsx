@@ -12,6 +12,8 @@ export type Listing = {
   expiryDays: number;
   publishedAt: number;
   live: boolean;
+  domain?: string;
+  region?: string;
 };
 
 export type ReceiptKind = "listing" | "consent" | "revoke" | "sale" | "contact" | "payout" | "inference" | "report";
@@ -31,7 +33,10 @@ export type Receipt = {
 export type Contact = { listingId: string; paymentTx: string; href?: string; message: string; reply: "pending" | "interested" | "ignored"; at: number };
 
 export type State = {
+  /** The most recent listing (kept for readers that only need one). */
   listing: Listing | null;
+  /** Every listing this seller has published, oldest first. */
+  listings: Listing[];
   receipts: Receipt[];
   earnings: { sales: number; contacts: number; paid: number };
   spent: number;
@@ -42,6 +47,7 @@ export type State = {
 
 const initial = (): State => ({
   listing: null,
+  listings: [],
   receipts: [],
   earnings: { sales: 0, contacts: 0, paid: 0 },
   spent: 0,
@@ -50,11 +56,26 @@ const initial = (): State => ({
   contact: null,
 });
 
+/** Sets the listings and keeps `listing` pointing at the most recent one. */
+export function withListings(s: State, listings: Listing[]): State {
+  return { ...s, listings, listing: listings[listings.length - 1] ?? null };
+}
+
+/** Applies a change to one listing, by id. */
+export function patchListingState(s: State, listingId: string, change: Partial<Listing>): State {
+  return withListings(s, s.listings.map((l) => (l.listingId === listingId ? { ...l, ...change } : l)));
+}
+
 const KEY = "hissa.arkiv.v4";
 function load(): State {
   try {
     const raw = sessionStorage.getItem(KEY);
-    if (raw) return { ...initial(), ...(JSON.parse(raw) as State) };
+    if (raw) {
+      const s = { ...initial(), ...(JSON.parse(raw) as State) };
+      if (!Array.isArray(s.listings)) s.listings = [];
+      if (!s.listings.length && s.listing) s.listings = [s.listing];
+      return withListings(s, s.listings);
+    }
   } catch {
     /* storage unavailable: start fresh */
   }
