@@ -15,21 +15,32 @@ export const SHOW_DEVANAGARI = true;
 /** Shows a small "simulated" badge in the nav. Turn off for a clean recording. */
 export const SHOW_SIM_BADGE = true;
 
+/**
+ * Hedera testnet accounts (real, from .env). Used in simulated mode; in live mode
+ * the IDs come from the demo API's /health.
+ */
 export const ACCOUNTS = {
-  treasury: "0.0.5864913",
-  agent: "0.0.6011742",
-  hcsTopic: "0.0.6011790",
+  relayBot: "@HissaRelayBot",
+  treasury: "0.0.10453173",
+  agent: "0.0.11342909",
+  hcsTopic: "0.0.11342910",
+  seller: "0.0.10502605", // SELLER_HEDERA_ACCOUNT_ID
   arkivWriter: "0x0F58223AAfF9C6e2534aaD09a996048175C04C96",
 };
 
 export const PRICES = {
-  insightReport: 3, // HBAR
-  record: { bronze: 0.5, silver: 1, gold: 2 },
+  record: 1, // HBAR, silver tier (fixtures.ts)
+  contact: 0.5, // HBAR per paid Telegram message, via the relay bot
 };
 
-export const PRIVACY = { kMin: 50, epsilon: 1.0, smallCell: 20, sellerShare: 0.8 };
+export const SELLER_SHARE = 0.8;
 
-export const AGENT_DEFAULTS = { budget: 10, perPurchase: 5, daily: 25 };
+/** Starting balances shown in the header (AGENT_INITIAL_HBAR in .env is 30). */
+export const START_BALANCE = { buyer: 30, seller: 0 };
+
+export const hashscanAccount = (id: string) => `https://hashscan.io/testnet/account/${id}`;
+
+export const AGENT_DEFAULTS = { budget: 10, perPurchase: 5, maxRecords: 3 };
 
 export const SOURCES = [
   { id: "chatgpt", name: "ChatGPT", hint: "conversations.json" },

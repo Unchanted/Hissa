@@ -2,35 +2,58 @@
 
 *Your hissa of every sale.* Hissa is Hindi for “share”.
 
-A clickable walkthrough of the whole product with no backend. Every Arkiv, 0G and
-Hedera call is simulated in the browser with realistic IDs and timings; nothing
-leaves the page. Prices, k_min and agent limits match `apps/server/src/fixtures.ts`.
+A clickable walkthrough of the whole product. Hedera payments are real when the demo
+API runs (see below); Arkiv and 0G are still simulated in the browser.
 
 ```bash
-cd apps/web
+# terminal 1 — demo API, real Hedera testnet payments (repo root, needs .env)
 npm install
-npm run dev        # http://localhost:5173
-npm run build      # typecheck + production build into dist/
+npm run demo:api          # http://localhost:4021
+
+# terminal 2 — the app
+cd apps/web && npm install
+npm run dev               # http://localhost:5173
 ```
 
-## Demo path (about 4 minutes)
+**Live vs simulated.** The nav shows `LIVE · HEDERA TESTNET` when the demo API is
+reachable: record purchases (1 ℏ) and Telegram messages (0.5 ℏ) are real x402 payments
+from the buyer agent to the treasury, each logged to the HCS topic, and *Pay out* sends
+the seller's 80% from the treasury as a Hedera Scheduled Transaction. Every hash links
+to HashScan, and the header shows live balances from the mirror node. Without the API
+the app shows `SIMULATED` and fakes the same flow; if the API drops mid-demo, payments
+fall back to simulated and say so in the agent log.
 
-A pill in the bottom-right always shows the next step (toggle with the `` ` `` key).
+Still simulated in both modes: Arkiv writes (lane B), 0G inference (lane C), the
+Telegram bot. Listings and consent live in the API's memory until Arkiv is wired in, so
+restarting the API forgets Priya's listing — click ↺ and publish again.
 
-1. **Landing** — hero, the four-hop protocol, the two privacy treatments.
-2. **Seller** — *Load Priya's ChatGPT export* → assistant replies drop out, PII
-   scrambles into placeholders → 0G TEE extraction with a request ID → review public
-   tags vs encrypted content, set the two consent toggles and expiry → encrypt, seal and
-   publish to Arkiv.
-3. **Merchant agent** — *Start agent*. It queries Arkiv, gets the cohort check,
-   receives `402`, checks its own spending policy, pays over x402, retries, runs 0G
-   labelling, applies the privacy layer, writes the Arkiv receipt and the HCS log, then
-   buys one record. The insight report and the watermarked record appear below.
-   Try `region = IN-west`: the cohort drops below 50 and the request is refused free.
-4. **Revoke** — back on Seller, switch off *Allow sale of my record*, then *Run agent
-   again*: the record purchase is refused before payment.
-5. **Ledger** — receipts from Arkiv, Priya's earnings, *Run payout batch* (Hedera
-   Scheduled Transaction), *Verify inclusion* (Merkle proof against the receipt).
+| Account | Role |
+| --- | --- |
+| `0.0.11342909` | Buyer agent, pays with x402; topped up from the treasury when below 12 ℏ |
+| `0.0.10453173` | Platform treasury, receives payments, pays sellers |
+| `0.0.10502605` | Demo seller (Priya), `SELLER_HEDERA_ACCOUNT_ID` |
+| `0.0.11342910` | HCS topic, one message per agent payment |
+
+## Demo path (fits in 3 minutes; the clicks take about 40 seconds)
+
+Three roles, one page each. A pill in the bottom-right shows the next step (`` ` `` hides it).
+
+| Page | Who | What |
+| --- | --- | --- |
+| Seller | Priya, the data owner | Upload, mask, publish with consent; earnings and payout; her Telegram |
+| Buyer | AI company | Describe the data you need, the agent buys it over x402, message sellers |
+| Public Ledger | Anyone | Every sale, message and payout. Listing IDs and transactions, no names |
+
+1. **Seller** — *Use sample export* → mask + 0G → turn on *Let buyers message me* → *Encrypt & publish*.
+2. **Buyer** — keep the sample request, *Find data*. 0G turns it into filters, Arkiv
+   returns matching listings (locked; the free preview is tags only), the agent pays
+   1 ℏ per record and each card unlocks. Then *Send to 1 seller* (0.5 ℏ, via the
+   Telegram relay; the buyer never sees the handle).
+3. **Seller** — Priya's Telegram shows the paid message; tap *Interested*. Then *Revoke*.
+4. **Buyer** — *Send follow-up*: refused before payment, the listing is gone from Arkiv.
+5. **Seller** — *Pay out*; **Public Ledger** shows every payment without names.
+
+Try the laptops example on the Buyer page: no seller matches, nothing is spent.
 
 Reset everything with ↺ in the nav. State survives a page refresh (sessionStorage).
 
