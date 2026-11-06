@@ -119,6 +119,47 @@ export function applyMask(text: string, found: { orig: string; kind: MaskKind }[
   return { masked, spans: [...byOrig.values()] };
 }
 
+/** Splits a comma/newline-separated list of extra words to hide. */
+export function parseExtraWords(input: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const w of input.split(/[,\n;]/).map((x) => x.trim().replace(/\s+/g, " "))) {
+    if (w.length < 2 || seen.has(w.toLowerCase())) continue;
+    seen.add(w.toLowerCase());
+    out.push(w);
+  }
+  return out;
+}
+
+/**
+ * Hides extra words the model missed (e.g. lowercase Hinglish names) in already-masked text.
+ * Whole-word, case-insensitive; each distinct word becomes [PERSON_n], numbered after the
+ * existing [PERSON_n]. Existing placeholders are never touched. `spans` has one entry per
+ * distinct matched spelling (sharing the placeholder of its word).
+ */
+export function maskExtraNames(text: string, words: string[]): { masked: string; spans: MaskSpan[] } {
+  const list = parseExtraWords(words.join(",")).filter((w) => !w.includes("["));
+  if (!list.length) return { masked: text, spans: [] };
+  let counter = 0;
+  for (const [, n] of text.matchAll(/\[PERSON_(\d+)\]/g)) counter = Math.max(counter, Number(n));
+  const phOf = new Map<string, string>(); // lowercase word -> placeholder, allocated on first match
+  const spans = new Map<string, MaskSpan>();
+  const alts = [...list].sort((a, b) => b.length - a.length).map(escapeRe);
+  const re = new RegExp(`${PLACEHOLDER.source}|(?<![\\p{L}\\p{N}])(?:${alts.join("|")})(?![\\p{L}\\p{N}])`, "giu");
+  const masked = text.replace(re, (m) => {
+    if (m.startsWith("[")) return m; // an existing placeholder
+    const key = m.toLowerCase();
+    let ph = phOf.get(key);
+    if (!ph) {
+      ph = `[PERSON_${++counter}]`;
+      phOf.set(key, ph);
+    }
+    if (!spans.has(m)) spans.set(m, { orig: m, ph, kind: "PERSON" });
+    return ph;
+  });
+  return { masked, spans: [...spans.values()] };
+}
+
 /** The rule pass: emails, IDs and phone numbers. */
 export function ruleMatches(text: string): { orig: string; kind: MaskKind }[] {
   const out: { orig: string; kind: MaskKind }[] = [];

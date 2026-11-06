@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyMask, chunkText, entitiesIn, partsOf, ruleMatches, type NerToken } from "../src/ner.js";
+import { applyMask, chunkText, entitiesIn, maskExtraNames, parseExtraWords, partsOf, ruleMatches, type NerToken } from "../src/ner.js";
 
 const tok = (index: number, word: string, entity: string, score = 0.99): NerToken => ({ index, word, entity, score });
 
@@ -67,4 +67,16 @@ test("chunks long lines under the limit at sentence boundaries", () => {
 test("splits a line into text and spans for the animation", () => {
   const spans = applyMask("Hi Priya", [{ orig: "Priya", kind: "PERSON" }]).spans;
   assert.deepEqual(partsOf("Hi Priya, Priyanka!", spans), ["Hi ", spans[0], ", Priyanka!"]);
+});
+
+test("extra names: whole-word, case-insensitive, numbered after existing PERSON", () => {
+  const r = maskExtraNames("[PERSON_1] met swapnil and Swapnil. anand said hi to Anandita [EMAIL_1]", ["swapnil", "Anand"]);
+  assert.equal(r.masked, "[PERSON_1] met [PERSON_2] and [PERSON_2]. [PERSON_3] said hi to Anandita [EMAIL_1]");
+  assert.deepEqual(r.spans.map((s) => [s.orig, s.ph]), [["swapnil", "[PERSON_2]"], ["Swapnil", "[PERSON_2]"], ["anand", "[PERSON_3]"]]);
+});
+
+test("extra names: never touches placeholders, ignores empty input", () => {
+  assert.equal(maskExtraNames("call [PERSON_1] [ID_2]", ["person", "id"]).masked, "call [PERSON_1] [ID_2]");
+  assert.deepEqual(maskExtraNames("hello", [" , "]), { masked: "hello", spans: [] });
+  assert.deepEqual(parseExtraWords("a, Anand ,anand,, swapnil"), ["Anand", "swapnil"]);
 });
