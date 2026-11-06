@@ -3,7 +3,8 @@
 Implementation planning and completed Arkiv validation for ETHGlobal Mumbai.
 
 - [Current architecture and product scope](docs/architecture.md)
-- [Approved plan (partly superseded by architecture)](docs/plan-v2.md)
+- [Plan: product, sponsor tracks and decisions](docs/plan-v2.md)
+- [Work plan: who builds what](docs/work-plan.md)
 - [Data sources and the third-party message rule](docs/data-sources.md)
 - [Arkiv SDK and security research](docs/arkiv-research-2026-11-06.md)
 - [Live test findings, transaction links and remaining checks](docs/arkiv-test-findings-2026-11-06.md)

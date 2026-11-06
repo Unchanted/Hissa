@@ -50,19 +50,20 @@ Read on 2026-11-06 from docs.arkiv.network: introduction, first entity, column t
 | Lifetime counts in 2-second blocks, maximum about 182.5 days. Extend only, never shorten | Consent window capped at 6 months. Renewal uses `extendEntity` |
 | Only the owner can patch, extend, transfer or delete. `$owner` and `$creator` are public | Platform writer owns listings, so users' wallets never appear. Users act through signed requests |
 | Events exist for create, patch, extend, transfer and delete, but **not for expiry** | Avoid any standing copy that would need eviction on expiry (section 4.1) |
-| Expired or deleted entities stop being served. Whether ciphertext stays in transaction history is not documented | Assume it stays forever. Deleting the wrapped key ("crypto-shredding") is the real erasure |
+| Expired or deleted entities stop being served. Whether ciphertext stays in transaction history is not documented | Assume it stays forever. Revoke and expiry mean the server refuses to release; they are not erasure |
 | Writes cost tGLM on Rabdi (chain 7794095). The public RPC is heavily rate limited | Fund the platform writer from the faucet. Use an access key for the server |
 
 ### 2.1 Entity types on Arkiv
 
 | Entity | Public, indexed attributes | `bytes` | Owner | Expiry |
 | --- | --- | --- | --- | --- |
-| `dm.listing` | `domain` (top-level, fixed vocabulary), `region`, `source`, `week` (u64), `quality_tier`, `consent_insights` (bool), `consent_sale` (bool), `price` (u64, tinybars), `ctl` (hash of a per-listing control key) | Ciphertext of the pseudonymised record (≤ 128 KiB) | Platform writer | User's consent window, ≤ 182 days |
+| `dm.listing` | `listing_id`, `domain` (top-level, fixed vocabulary), `region`, `source`, `week` (u64), `quality_tier`, `consent_insights` (bool), `consent_sale` (bool), `price` (u64, tinybars); unindexed `envelope_format` | `ciphertext` (the record), `wrapped_key` (record key sealed to the service), `sealed_seller` (seller info sealed to the service); all together ≤ 128 KiB | Platform writer | User's consent window, ≤ 182 days |
 | `dm.sale` | `listing` (key), `buyer_ref` (hash), `payment_tx` (str), `price` (u64) | — | Platform writer | Long-lived audit record |
-| `dm.insight_receipt` | `spec_hash`, `domain`, `cohort_bucket` (e.g. "50–99"), `epsilon`, `k_min`, `payment_tx`, `contributors_root` (Merkle root) | — | Platform writer | Long-lived audit record |
+| `dm.insight_receipt` | `spec_hash`, `domain`, `cohort_bucket` (e.g. "50–99"), `epsilon`, `k_min`, `payment_tx`, `contributors_root` (Merkle root) | `sealed_contributors` (contributor list and shares, sealed to the service) | Platform writer | Long-lived audit record |
+| `dm.payout` | `batch_id`, `scheduled_tx` (str) | `sealed_lines` (who was paid what, sealed to the service) | Platform writer | Long-lived audit record |
 
 Rules for public attributes:
-- **Nothing per user:** no wallet, no user id, no attribute that is the same across one user's listings. `ctl` is a fresh random key per listing, so it cannot link listings together.
+- **Nothing per user:** no wallet, no user id, no attribute that is the same across one user's listings. Anything that identifies the seller lives only inside `sealed_seller`.
 - **Few and coarse:** every public attribute makes listings easier to single out. Keep them to the list above.
 - **Insight reports themselves are not on Arkiv:** the paying merchant receives the report encrypted to their key. Only the receipt is public, so anyone can audit the privacy parameters used (cohort size bucket, noise level, threshold) and the payment.
 
@@ -72,7 +73,34 @@ Rules for public attributes:
 
 [Full-page HTML version](diagrams/listing-lifecycle.html)
 
-The user proves control of a listing by signing with the per-listing control key kept on the device. The server verifies the signature against `ctl`, then calls Arkiv on the user's behalf. Because `ctl` is public, anyone can check later that a revoke request was signed by the listing's owner.
+The user proves control of a listing by signing with the per-listing control key kept on the device. Its public half is inside `sealed_seller`, so only the server can check the signature; it then calls Arkiv on the user's behalf.
+
+"Closed" in the diagram means the server refuses every further release for that listing. The wrapped key stays sealed on Arkiv, so this is a refusal enforced by the service, not cryptographic erasure.
+
+### 2.3 No private database: private state is sealed onto Arkiv
+
+The server keeps no database. Everything it must remember but must not publish is encrypted to the service's public key ("sealed") and stored on Arkiv. The server's only secrets are environment variables: the service private key, the Arkiv writer key and the Hedera treasury key.
+
+| Private state | Where it lives |
+| --- | --- |
+| Record key | `wrapped_key` on the listing |
+| Seller's payout account, per-user reference (for one vote per user), listing control public key, consent deadline | `sealed_seller` on the listing |
+| Which users were counted in an insight report, and their shares | `sealed_contributors` on the receipt |
+| Earnings | Derived on demand: 80% of each `dm.sale` plus shares from receipts, minus `dm.payout` lines |
+| Payment replay protection | Each payment tx is recorded on `dm.sale` or `dm.insight_receipt`; the server checks for it before releasing. **verify:** whether the Hedera facilitator already rejects a reused payment |
+
+Why: "Arkiv is our only database" is the strongest answer to the Arkiv track's "why Arkiv" criterion, and the server stays stateless. Cost: sealed blobs still leak their size and timing, and anyone holding the service private key can read all private state.
+
+### 2.4 Encryption format
+
+| Layer | Choice |
+| --- | --- |
+| Record body | `arkiv-encryption` (`encryptBytes` / `decryptBytes`: AES-256-GCM, random 12-byte IV). Inside the encrypted JSON: `listing_id`, schema version and consent deadline; after decrypting, the server checks they match the listing. `envelope_format` records the format version |
+| Sealing to the service or to a buyer | One small Web Crypto helper, `sealTo(publicKey, bytes)`: ephemeral ECDH P-256 + HKDF-SHA-256 + AES-256-GCM. Used for `wrapped_key`, `sealed_seller`, `sealed_contributors`, `sealed_lines`, and buyer delivery |
+| Buyer delivery | Fresh record key, `encryptBytes` on the watermarked copy, that key sealed to the buyer's public key |
+| Service public key | Pinned in app config, never fetched at runtime |
+
+Binding the listing context inside the authenticated plaintext gives the same protection as AAD here, because only the trusted platform writer publishes listings and the server checks both. The package's lack of AAD and a version header goes into `/arkiv/friction.md`.
 
 ## 3. System architecture
 
@@ -86,7 +114,7 @@ The user proves control of a listing by signing with the per-listing control key
 | --- | --- | --- |
 | User device | Raw export, masked text, keys at creation | — |
 | 0G TEE provider | Masked text at upload (facet extraction) and at query time (labelling); question text; noised aggregate tables | Raw export, user identity, unnoised per-user labels outside the TEE (**verify:** 0G private route attestation) |
-| Platform server | Wrapped keys; masked text and facets **at the moment** of a sale or insight query; which user owns which listing (for payouts) | Raw export |
+| Platform server | Service private key (so it can unseal anything on Arkiv); masked text and facets **at the moment** of a sale or insight query; which user owns which listing (for payouts) | Raw export |
 | Arkiv readers | Coarse public tags, ciphertext sizes, sale and insight receipts | Masked text, facets, user identity, which listings fed which report |
 | Merchant (insights) | Noised, thresholded report for one cohort | Any single record or contributor |
 | Merchant (record sale) | One masked, watermarked, pseudonymised record | Raw export, user's account, other buyers' pseudonyms |
@@ -104,7 +132,7 @@ The server sees masked text whenever it decrypts. This follows from the approved
 
 Facet extraction needs an LLM, which is too heavy for most browsers. The default is the 0G private (TEE) route on **masked** text, with a regex and keyword fallback on the device. A user who refuses any upload-time inference still gets masking and coarse tags; their listings simply have fewer facets.
 
-For the hackathon, keep the existing single review after facet extraction and before encryption/publication. A separate masked-text review before sending to 0G is deferred. On the opted-in route, masked text leaves the device before that final review; raw exports stay local.
+For the hackathon, keep the existing single review after facet extraction and before encryption/publication. A separate masked-text review before sending to 0G is deferred. On the default route (users can opt out), masked text leaves the device before that final review; raw exports stay local.
 
 ### 4.2 Record purchase (pseudonymised)
 
@@ -121,7 +149,7 @@ For the hackathon, keep the existing single review after facet extraction and be
 **Hackathon scope (confirmed 2026-11-06):** merchants choose from premade, supported analysis options and their allowed cohort filters. Each option maps to a predefined analysis spec; arbitrary merchant instructions are not executed. Include an **Other — coming soon** option describing future English-query support, but do not implement free-text query input, interpretation or execution yet. 0G still performs the selected analysis's query-time labelling, theme naming and report writing.
 
 Why decrypt on demand instead of keeping a decrypted analytics database:
-- **Revoke and expiry exclude listings from new analyses.** An expired or deleted listing is no longer returned by Arkiv, and a revoked listing's wrapped key is gone. There is no standing plaintext analytics copy to evict. Wrapped-key retention and cleanup are separate from plaintext eviction, because Arkiv emits no expiry event.
+- **Revoke and expiry exclude listings from new analyses.** An expired or deleted listing is no longer returned by Arkiv, and the server only releases or analyses listings that are live. There is no standing plaintext analytics copy to evict.
 - **No standing plaintext copy** of masked text to leak.
 - **Cost:** a full candidate scan per question. Fine at demo and early scale (keyset paging, 100 rows per page). A cache of decrypted facets, keyed by entity and checked against `$expiresAt` on every read, is a later optimisation.
 
@@ -175,12 +203,12 @@ Age is rarely stated reliably in chats. `age_band` comes from an optional declar
 - **Chunking follows the 128 KiB limit.** One listing per conversation (or chunk of a long one). This also gives the insights pipeline natural units, and contribution bounding stops a user with many listings from dominating a cohort.
 - **Consent toggles are Arkiv attributes.** Changing a toggle is a `patchEntity`, and both flows re-check the flag at the moment of use.
 - **Consent windows are capped by Arkiv's maximum lifetime** (about 182 days); renewal is an extension.
-- **Erasure is key deletion.** Because ciphertext may survive in chain history, a revoked or expired listing's wrapped key is deleted. Without it, the history copy is unreadable.
+- **Revoke is refusal, not erasure.** Ciphertext and sealed keys may survive in chain history. The server refuses to use any listing that is not live on Arkiv.
 - **Receipts make privacy auditable.** Anyone can read every `dm.insight_receipt` and check that no report used a cohort below `k_min` or an excessive noise budget, without learning who was in any cohort.
 
 ## 7. Where each sponsor sits
 
-Sponsor tracks are the core of the build; requirements and evidence are in [plan-v2.md §0](plan-v2.md).
+Sponsor tracks are the core of the build; requirements and evidence are in [plan-v2.md §2](plan-v2.md).
 
 | Sponsor | Where it sits in the flows above | Evidence a judge sees |
 | --- | --- | --- |
