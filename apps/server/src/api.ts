@@ -21,8 +21,11 @@
  *   POST   /api/payouts                  treasury pays the seller what they are owed
  *   GET    /api/receipts                 settled payments and payouts
  *   GET    /api/ai/status                0G key configured? (never returns the key)
- *   POST   /api/ai/analyse-upload        0G Private Computer: masked text → facets + receipt
- *   POST   /api/ai/insight-demo          0G Private Computer: anonymised cohort report + receipts
+ *   POST   /api/ai/analyse-upload        0G Private Computer: classify text masked on the device → facets + receipt
+ *   POST   /api/ai/parse-request         0G Private Computer: buyer request/idea → filters (+ question)
+ *   GET    /api/insights/quote           consenting people for an analysis (Arkiv) before paying
+ *   POST   /api/insights/:id     x402    anonymised insight report (0G, k ≥ 50, noised)
+ *   POST   /agent/insight                agent pays for a report; 80% shared with contributors
  */
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -42,6 +45,9 @@ import { AgentPayer } from "../../../packages/pay/src/payer.js";
 import { logPaymentToHcs, type AgentPaymentLog } from "../../../packages/pay/src/hcs.js";
 import { aiRoutes } from "../../../packages/ai/src/routes.js";
 import { CHAT_MODELS, ROUTER_URL } from "../../../packages/ai/src/zerog.js";
+import { runInsight } from "../../../packages/ai/src/insights.js";
+import { ABANDONMENT_COHORT } from "../../../packages/ai/src/synthetic-cohort.js";
+import { DOMAINS, REGIONS, pick } from "../../../packages/ai/src/taxonomy.js";
 import { createArkivAppStore } from "../../../packages/arkiv/src/app-store.ts";
 import { createAppListingRoutes } from "./routes/app-listings.ts";
 import { createSettlementOutbox } from "../../../packages/arkiv/src/settlement-outbox.ts";
@@ -57,6 +63,9 @@ const self = `http://localhost:${port}`;
 
 const RECORD_PRICE = hbarToTinybars(1);
 const CONTACT_PRICE = hbarToTinybars(0.5);
+const INSIGHT_PRICE = hbarToTinybars(2);
+/** Minimum distinct people in an insight cohort (k-anonymity), checked before any payment. */
+const K_MIN = 50;
 const PER_PURCHASE = hbarToTinybars(Number(process.env["AGENT_MAX_PER_PURCHASE_HBAR"] ?? 5));
 const DAILY = hbarToTinybars(Number(process.env["AGENT_DAILY_CAP_HBAR"] ?? 25));
 /** Keep the agent funded between rehearsals: top up from the treasury below this. */
@@ -155,6 +164,43 @@ app.get("/api/ai/status", (c) =>
 );
 app.route("/api/ai", aiRoutes());
 
+/* ---------- insights: anonymised analytics over consenting sellers ---------- */
+
+type InsightJob = { question: string; hypothesis?: string; items: { user_ref: string; excerpts: string[] }[]; real: number; seed: number;
+  shareTinybars?: bigint; result?: Record<string, unknown> };
+const insightJobs = new Map<string, InsightJob>();
+
+/**
+ * Real consenting listings from Arkiv (consent_insights=true), plus, for the beauty demo only, a
+ * clearly labelled synthetic seed panel so a 50-person report can run before 50 real sellers exist.
+ */
+async function insightCohort(filter: { domain: string; region?: string }) {
+  const realItems = await store.insightCohort(filter);
+  const seedItems = filter.domain === "beauty" ? ABANDONMENT_COHORT.map((i) => ({ ...i, user_ref: `seed:${i.user_ref}` })) : [];
+  const users = (items: { user_ref: string }[]) => new Set(items.map((i) => i.user_ref)).size;
+  return { items: [...realItems, ...seedItems], real: users(realItems), seed: users(seedItems) };
+}
+function insightFilter(q: { domain?: unknown; region?: unknown }) {
+  const domain = pick(DOMAINS, q.domain);
+  if (!domain) return null;
+  const region = pick(REGIONS, q.region);
+  return { domain, ...(region ? { region } : {}) };
+}
+
+app.get("/api/insights/quote", async (c) => {
+  const filter = insightFilter({ domain: c.req.query("domain"), region: c.req.query("region") });
+  if (!filter) return c.json({ error: "domain required" }, 400);
+  const { real, seed } = await insightCohort(filter);
+  return c.json({ real, seed, total: real + seed, kMin: K_MIN, ok: real + seed >= K_MIN, priceHbar: Number(tinybarsToHbar(INSIGHT_PRICE)) });
+});
+app.use("/api/insights/:id", async (c, next) => {
+  if (c.req.method !== "POST") return next();
+  const job = insightJobs.get(c.req.param("id"));
+  if (!job) return c.json({ error: "unknown analysis; ask for a quote first" }, 404);
+  if (job.real + job.seed < K_MIN) return c.json({ error: `fewer than ${K_MIN} consenting people` }, 403);
+  await next();
+});
+
 // Refuse before asking for money.
 app.use("/api/records/:id", async (c, next) => {
   const l = await store.getListing(c.req.param("id"));
@@ -175,11 +221,15 @@ app.use(
     routes: {
       "GET /api/records/:id": { description: "One masked, watermarked data record", priceTinybars: RECORD_PRICE },
       "POST /api/contact/:id": { description: "One paid Telegram message to a seller, via the relay", priceTinybars: CONTACT_PRICE },
+      "POST /api/insights/:id": { description: "One anonymised insight report (0G Private Computer, k ≥ 50, noised)", priceTinybars: INSIGHT_PRICE },
     },
     onSettled: async (p) => {
       const id = p.resource.split("/").pop() ?? "";
-      const payment = await settlementOutbox.remember({ kind: p.resource.includes("/contact/") ? "contact_purchase" : "record_purchase",
-        listing: id, txId: p.txId, hashscan: hashscan.tx(p.txId), amountTinybars: p.amountTinybars, at: new Date().toISOString() });
+      const insight = p.resource.includes("/insights/");
+      const share = insight ? (insightJobs.get(id)?.shareTinybars ?? 0n) : undefined;
+      const payment = await settlementOutbox.remember({ kind: insight ? "insight_purchase" : p.resource.includes("/contact/") ? "contact_purchase" : "record_purchase",
+        listing: id, txId: p.txId, hashscan: hashscan.tx(p.txId), amountTinybars: p.amountTinybars, at: new Date().toISOString(),
+        ...(share !== undefined ? { shareTinybars: share.toString() } : {}) });
       await store.recordPayment(payment);
       await settlementOutbox.acknowledge(payment.txId);
       console.log(`[x402] ${tinybarsToHbar(p.amountTinybars)} HBAR ${p.payer} → ${p.payTo} for ${id}  ${hashscan.tx(p.txId)}`);
@@ -189,6 +239,21 @@ app.use(
 
 app.get("/api/records/:id", async (c) => c.json({ record: await store.readRecord(c.req.param("id")) }));
 app.post("/api/contact/:id", (c) => c.json({ delivered: true, via: "telegram-relay" }));
+/** Runs after payment is verified; x402 settles only if this returns 2xx, so a failed 0G run costs nothing. */
+app.post("/api/insights/:id", async (c) => {
+  const id = c.req.param("id");
+  const job = insightJobs.get(id)!;
+  try {
+    const out = await runInsight({ analysisId: id, question: job.question, ...(job.hypothesis ? { hypothesis: job.hypothesis } : {}), items: job.items }, { kMin: K_MIN });
+    if (out.status !== "ok") return c.json({ error: out.reason }, 422);
+    // 80% of the price goes to the people counted, split equally; only real sellers have payout accounts.
+    job.shareTinybars = (INSIGHT_PRICE * 80n / 100n) * BigInt(job.real) / BigInt(job.real + job.seed);
+    job.result = out as unknown as Record<string, unknown>;
+    return c.json({ report: out });
+  } catch (e) {
+    return c.json({ error: `0G analysis failed: ${(e as Error).message}` }, 502);
+  }
+});
 
 async function agentPays(kind: AgentPaymentLog["kind"], listingId: string, budgetLeftHbar: number, init?: RequestInit) {
   const path = kind === "contact_purchase" ? "contact" : "records";
@@ -242,6 +307,33 @@ app.post("/agent/contact", async (c) => {
   } catch (e) {
     const msg = (e as Error).message;
     return c.json({ error: errorText(msg) }, errorStatus(msg) as 403);
+  }
+});
+
+app.post("/agent/insight", async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as { question?: unknown; hypothesis?: unknown; filters?: { domain?: unknown; region?: unknown }; budgetLeftHbar?: unknown };
+  const filter = insightFilter(b.filters ?? {});
+  if (!filter || typeof b.question !== "string" || !b.question.trim()) return c.json({ error: "question and filters.domain required" }, 400);
+  const { items, real, seed } = await insightCohort(filter);
+  if (real + seed < K_MIN) return c.json({ status: "refused", reason: `Fewer than ${K_MIN} consenting people match, so a report could identify someone. Nothing was charged.`, cohort: { real, seed }, kMin: K_MIN });
+  const id = `rpt_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  insightJobs.set(id, { question: b.question.trim().slice(0, 240), ...(typeof b.hypothesis === "string" && b.hypothesis.trim() ? { hypothesis: b.hypothesis.trim().slice(0, 500) } : {}), items, real, seed });
+  const resource = `${self}/api/insights/${id}`;
+  const payer = new AgentPayer(agentId, agentKey, { budget: hbarToTinybars(Number(b.budgetLeftHbar ?? 10)), perPurchase: PER_PURCHASE, daily: DAILY }, () => undefined);
+  try {
+    const r = await payer.buy<{ report?: Record<string, unknown> }>(resource, { method: "POST" });
+    const at = new Date().toISOString();
+    const receipt: Receipt = { kind: "insight_purchase", listing: id, txId: r.txId, hashscan: hashscan.tx(r.txId), amountHbar: tinybarsToHbar(r.amountTinybars), at };
+    logHcsInBackground({ v: 1, kind: "insight_purchase", resource, listing: id, amount_tinybars: r.amountTinybars.toString(), payer: r.payer ?? agentId,
+      pay_to: r.payTo, payment_tx: r.txId, budget_left_tinybars: payer.remaining().toString(), at }, receipt);
+    const job = insightJobs.get(id)!;
+    return c.json({ ...(r.body?.report ?? job.result ?? {}), question: job.question, cohort: { real, seed },
+      payment: { txId: r.txId, hashscan: receipt.hashscan, amountHbar: receipt.amountHbar, contributorShareHbar: tinybarsToHbar(INSIGHT_PRICE * 80n / 100n) } });
+  } catch (e) {
+    const msg = (e as Error).message;
+    return c.json({ error: errorText(msg) }, errorStatus(msg) as 403);
+  } finally {
+    setTimeout(() => insightJobs.delete(id), 10 * 60_000);
   }
 });
 

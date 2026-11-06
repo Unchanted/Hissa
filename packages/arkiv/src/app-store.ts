@@ -20,8 +20,10 @@ type Publisher = Awaited<ReturnType<typeof createArkivPublisher>>;
 type Seller = { ctl_public_key: string; control_version: number; consent_contact: boolean; consent_deadline: number; payout_account: string };
 type ReceiptDetails = { payoutAccount: string; shareTinybars: string; hashscan: string; payoutIntent?: string };
 export type StoredPayment = {
-  kind: "record_purchase" | "contact_purchase" | "payout"; listing?: string;
+  kind: "record_purchase" | "contact_purchase" | "insight_purchase" | "payout"; listing?: string;
   txId: string; hashscan: string; amountTinybars: string; at: string;
+  /** insight_purchase only: the seller's share (80% split over the report's contributors). */
+  shareTinybars?: string;
 };
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value));
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -105,7 +107,7 @@ export function makeArkivAppStore(publisher: Publisher, serviceKey: string, sell
   }
 
   async function recordPayment(payment: StoredPayment, payoutIntent?: string) {
-    if (!["record_purchase", "contact_purchase", "payout"].includes(payment.kind) ||
+    if (!["record_purchase", "contact_purchase", "insight_purchase", "payout"].includes(payment.kind) ||
       typeof payment.txId !== "string" || !payment.txId || Buffer.byteLength(payment.txId) > 128 ||
       !/^(0|[1-9]\d{0,19})$/.test(payment.amountTinybars) || !Number.isSafeInteger(Date.parse(payment.at))) throw invalid();
     const amount = BigInt(payment.amountTinybars);
@@ -117,7 +119,9 @@ export function makeArkivAppStore(publisher: Publisher, serviceKey: string, sell
         prior.entities[0]!.kind.value !== payment.kind || prior.entities[0]!.amount.value !== amount || prior.entities[0]!.listing_id.value !== (payment.listing ?? "")) throw new PublicationError("conflict");
       return { entityKey: prior.entities[0]!.$key };
     }
-    const details: ReceiptDetails = { payoutAccount: sellerAccount, shareTinybars: (payment.kind === "payout" ? 0n : amount * 80n / 100n).toString(),
+    const share = payment.kind === "payout" ? 0n : payment.kind === "insight_purchase" ? BigInt(/^\d{1,20}$/.test(payment.shareTinybars ?? "") ? payment.shareTinybars! : "0") : amount * 80n / 100n;
+    if (share > amount * 80n / 100n) throw invalid();
+    const details: ReceiptDetails = { payoutAccount: sellerAccount, shareTinybars: share.toString(),
       hashscan: payment.hashscan, ...(payoutIntent ? { payoutIntent } : {}) };
     return publisher.createEntity(`payment:${hash(payment.txId)}`, appReceiptSchema, {
       kind: payment.kind, listing_id: payment.listing ?? "", payment_tx: payment.txId, amount: u64(amount),
@@ -188,6 +192,33 @@ export function makeArkivAppStore(publisher: Publisher, serviceKey: string, sell
         return { items, ...(page.next ? { next: page.next } : {}) };
       });
     },
+    /**
+     * Consenting records for an anonymised insight report (consent_insights=true). Decrypted on
+     * this server only to hand masked excerpts to 0G's sealed analysis; one user_ref per seller.
+     */
+    insightCohort: (filter: { domain: string; region?: string }) => queue.run(async () => {
+      const country = filter.region && /^[A-Z]{2}$/.test(filter.region) ? filter.region : undefined;
+      const items: { user_ref: string; excerpts: string[] }[] = [];
+      let cursor: string | undefined;
+      for (let n = 0; n < 5; n++) {
+        const page = await publisher.reader.queryListings({ consent_insights: true, domain: filter.domain,
+          ...(!country && filter.region ? { region: filter.region } : {}) }, cursor);
+        for (const preview of page.items) {
+          if (country && preview.region !== country && !preview.region.startsWith(`${country}-`)) continue;
+          const found = await listing(preview.listing_id);
+          if (!found) continue;
+          try {
+            const value: unknown = JSON.parse(service.decryptRecord(service.open(found.row.wrapped_key), found.row.ciphertext).toString("utf8"));
+            if (!object(value) || value.listing_id !== preview.listing_id || !Array.isArray(value.excerpts)) continue;
+            const excerpts = value.excerpts.filter((x): x is string => typeof x === "string").slice(0, 3);
+            if (excerpts.length) items.push({ user_ref: `seller:${hash(found.seller.ctl_public_key).slice(0, 16)}`, excerpts });
+          } catch { /* unreadable record: leave it out */ }
+        }
+        if (!page.next) break;
+        cursor = page.next;
+      }
+      return items;
+    }),
     readRecord: (id: string) => queue.run(async () => {
       const found = await listing(id);
       if (!found || !found.consentSale) throw new PublicationError("conflict");
@@ -202,8 +233,8 @@ export function makeArkivAppStore(publisher: Publisher, serviceKey: string, sell
         excerpt: value.excerpts.join("\n"), source: found.row.source, region: found.row.region, week: found.row.week.toString() };
     }),
     publicReceipts: () => queue.run(async () => ({ items: (await receipts()).map((row) => ({
-      id: row.key, arkivEntityKey: row.key, kind: row.kind === "record_purchase" ? "sale" : row.kind === "contact_purchase" ? "contact" : row.kind,
-      title: row.kind === "payout" ? "Scheduled payout" : `${row.listing} · ${row.kind === "contact_purchase" ? "message" : row.kind === "record_purchase" ? "record" : row.kind}`,
+      id: row.key, arkivEntityKey: row.key, kind: row.kind === "record_purchase" ? "sale" : row.kind === "contact_purchase" ? "contact" : row.kind === "insight_purchase" ? "report" : row.kind,
+      title: row.kind === "payout" ? "Scheduled payout" : `${row.listing} · ${row.kind === "contact_purchase" ? "message" : row.kind === "record_purchase" ? "record" : row.kind === "insight_purchase" ? "insight report" : row.kind}`,
       chain: ["listing", "consent", "revoke"].includes(row.kind) ? "arkiv" as const : "hedera" as const,
       tx: row.txId, amount: Number(row.amount) / 1e8, at: row.at, href: row.details.hashscan,
     })) })),

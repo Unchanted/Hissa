@@ -147,7 +147,7 @@
 
   <section>
     <h2>2 · Analyse inside 0G TEE</h2>
-    <p class="sub">One sealed call: the enclave finds the identifiers regex missed (names, places, employers) and extracts what the person talks about. Only masked text is sent.</p>
+    <p class="sub">One sealed call: the enclave classifies what the person talks about (domain, age band, budget, products, events, reasons). It only ever sees text already masked on the device; it never masks or unmasks anything.</p>
     <div class="row">
       <button id="btnAnalyse">2 · Analyse inside 0G TEE</button>
       <span class="hint">POST /api/ai/analyse-upload</span>
@@ -159,14 +159,9 @@
     </div>
     <div id="anError"></div>
     <div id="anOut" style="display:none">
-      <h3>Identifiers 0G caught</h3>
-      <div id="ids"></div>
-      <h3>Fully masked text</h3>
+      <div id="ids" style="display:none"></div>
+      <h3>Masked text 0G read</h3>
       <div class="textbox" id="fullText"></div>
-      <div class="legend">
-        <span><span class="ph device">[PHONE_1]</span> caught on device</span>
-        <span><span class="ph tee">[PERSON_1]</span> caught inside 0G TEE</span>
-      </div>
       <div class="grid2" style="margin-top:22px">
         <div>
           <h3 style="margin-top:0">Facets (what the data is about)</h3>
@@ -370,7 +365,7 @@ $("btnAnalyse").addEventListener("click", async () => {
     const body = await readJson(res);
     if (!res.ok) { showError($("anError"), body.error || `HTTP ${res.status}`, body.code); return; }
     renderIds(body.extraIdentifiers || []);
-    $("fullText").replaceChildren(highlight(body.maskedText || ""));
+    $("fullText").replaceChildren(highlight(body.maskedText || text));
     renderFacets(body.facets || {});
     $("receipt").replaceChildren(renderReceipt(body.receipt || {}));
     $("anOut").style.display = "";

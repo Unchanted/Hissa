@@ -6,8 +6,9 @@ import type { StoredPayment } from "./app-store.ts";
 async function sync(path: string) { const handle = await open(path, "r"); try { await handle.sync(); } finally { await handle.close(); } }
 function validate(value: unknown): asserts value is StoredPayment {
   const p = value as Partial<StoredPayment> | null;
-  if (!p || !["record_purchase", "contact_purchase"].includes(p.kind ?? "") || typeof p.txId !== "string" || !p.txId ||
-    typeof p.listing !== "string" || !/^lst_[a-z0-9]{2,64}$/.test(p.listing) || typeof p.amountTinybars !== "string" ||
+  if (!p || !["record_purchase", "contact_purchase", "insight_purchase"].includes(p.kind ?? "") || typeof p.txId !== "string" || !p.txId ||
+    typeof p.listing !== "string" || !(p.kind === "insight_purchase" ? /^rpt_[a-z0-9]{2,64}$/ : /^lst_[a-z0-9]{2,64}$/).test(p.listing) ||
+    (p.shareTinybars !== undefined && !/^\d{1,20}$/.test(p.shareTinybars)) || typeof p.amountTinybars !== "string" ||
     !/^[1-9]\d{0,19}$/.test(p.amountTinybars) || typeof p.hashscan !== "string" || typeof p.at !== "string" || !Number.isFinite(Date.parse(p.at))) throw new Error("Invalid settlement outbox entry");
 }
 

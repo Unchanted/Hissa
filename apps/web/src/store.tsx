@@ -14,12 +14,12 @@ export type Listing = {
   live: boolean;
 };
 
-export type ReceiptKind = "listing" | "consent" | "revoke" | "sale" | "contact" | "payout";
+export type ReceiptKind = "listing" | "consent" | "revoke" | "sale" | "contact" | "payout" | "inference" | "report";
 export type Receipt = {
   id: string;
   kind: ReceiptKind;
   title: string;
-  chain: "arkiv" | "hedera";
+  chain: "arkiv" | "hedera" | "0g";
   tx: string;
   amount?: number;
   at: number;

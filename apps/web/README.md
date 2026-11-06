@@ -3,7 +3,8 @@
 *Your hissa of every sale.* Hissa is Hindi for “share”.
 
 A clickable walkthrough of the whole product. Hedera payments are real when the demo
-API runs (see below); Arkiv and 0G are still simulated in the browser.
+API runs (see below), listings and receipts live encrypted on Arkiv, and 0G inference is
+real when the API also has `ZG_API_KEY`.
 
 ```bash
 # terminal 1 — demo API, real Hedera testnet payments (repo root, needs .env)
@@ -23,9 +24,29 @@ to HashScan, and the header shows live balances from the mirror node. Without th
 the app shows `SIMULATED` and fakes the same flow; if the API drops mid-demo, payments
 fall back to simulated and say so in the agent log.
 
-Still simulated in both modes: Arkiv writes (lane B), 0G inference (lane C), the
-Telegram bot. Listings and consent live in the API's memory until Arkiv is wired in, so
-restarting the API forgets Priya's listing — click ↺ and publish again.
+**On-device masking.** Names and places are masked in the browser by a small NER model
+(`Xenova/bert-base-NER`, int8, about 109 MB, run with Transformers.js in a Web Worker and
+cached after the first download), plus regex for emails and phone numbers. The seller
+reviews the masked text before anything leaves the device. Brands are kept on purpose.
+
+**0G Private Computer.** 0G never masks. With `ZG_API_KEY` in `.env`, these are sealed
+(TEE) 0G calls through the demo API:
+- seller: classify the masked text into facets (domain, age band, budget, products, events);
+  the top-level domain becomes the public Arkiv tag, the rest stays inside the ciphertext;
+- buyer, both products: request or idea → filters (and, for an idea, one measurable question);
+- buyer, *Validate an idea*: the anonymised report (label → themes → noised shares → report
+  and verdict) over people who opted in with `consent_insights`.
+Each call's request ID shows on the page and as a `0G TEE` row on the Public Ledger.
+
+**Two buyer products.**
+- *Validate an idea* (anonymised analytics, 2 ℏ): needs at least 50 consenting people or it
+  refuses before payment. Real consenting listings come from Arkiv; for the beauty demo a
+  clearly labelled synthetic seed panel tops the cohort up to 50. x402 settles only after the
+  report is delivered; 80% of the price is split across the people counted (real sellers are
+  credited on Arkiv and paid out in batches).
+- *Buy training data* (pseudonymised records, 1 ℏ each): Arkiv discovery, per-record x402.
+
+Still simulated: the Telegram bot.
 
 | Account | Role |
 | --- | --- |
@@ -44,8 +65,12 @@ Three roles, one page each. A pill in the bottom-right shows the next step (`` `
 | Buyer | AI company | Describe the data you need, the agent buys it over x402, message sellers |
 | Public Ledger | Anyone | Every sale, message and payout. Listing IDs and transactions, no names |
 
-1. **Seller** — *Use sample export* → mask + 0G → turn on *Let buyers message me* → *Encrypt & publish*.
-2. **Buyer** — keep the sample request, *Find data*. 0G turns it into filters, Arkiv
+1. **Seller** — *Use sample export* → masked on the device, classified by 0G → keep *Include me in
+   anonymised analytics* on, turn on *Let buyers message me* → *Encrypt & publish*.
+2. **Buyer · Validate an idea** — keep the sample idea, *Check against real data*: 0G turns
+   it into a question, Arkiv counts consenting people, the agent pays 2 ℏ, 0G writes the
+   anonymised report with a verdict. Try the laptop idea: too few people, nothing charged.
+   **Buyer · Buy training data** — keep the sample request, *Find data*. 0G turns it into filters, Arkiv
    returns matching listings (locked; the free preview is tags only), the agent pays
    1 ℏ per record and each card unlocks. Then *Send to 1 seller* (0.5 ℏ, via the
    Telegram relay; the buyer never sees the handle).

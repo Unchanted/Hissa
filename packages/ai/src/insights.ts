@@ -13,7 +13,15 @@
 import { sealedJson, ZeroGError, type InferenceReceipt } from "./zerog.js";
 
 export type InsightItem = { user_ref: string; excerpts: string[] };
-export type InsightInput = { analysisId: string; question: string; items: readonly InsightItem[] };
+export type InsightInput = {
+  analysisId: string;
+  question: string;
+  /** The buyer's business idea; when set, the report ends with a verdict on it. */
+  hypothesis?: string;
+  items: readonly InsightItem[];
+};
+export type Verdict = "supported" | "partly" | "not_supported" | "unclear";
+const VERDICTS: readonly Verdict[] = ["supported", "partly", "not_supported", "unclear"];
 export type InsightOptions = { kMin?: number; epsilon?: number; smallCell?: number; rng?: () => number };
 export type InsightTheme = { name: string; share_pct: number };
 export type InsightPrivacy = { kMin: number; epsilon: number; smallCell: number };
@@ -24,6 +32,8 @@ export type InsightReport = {
   cohort_bucket: string;
   themes: InsightTheme[];
   report_markdown: string;
+  verdict: Verdict;
+  verdict_reason: string;
   receipts: InferenceReceipt[];
   privacy: InsightPrivacy;
 };
@@ -45,7 +55,8 @@ Return ONLY a JSON object: {"themes":[{"name":"...","labels":["...", "..."]}]}.`
 
 const REPORT_SYSTEM = `[stage:report] You write a short insight report for a merchant from aggregate, privacy-protected numbers.
 Rules: use ONLY the numbers given, never invent other figures. Say clearly that the figures are approximate because statistical noise was added to protect privacy. Do not invent quotes, customers, individuals or anecdotes. 150-300 words of markdown: a "# " title, 3-5 bullet points (one per theme with its approximate share), then one paragraph starting with "**What to do:**".
-Return ONLY a JSON object: {"markdown":"..."}.`;
+If a "hypothesis" is given, also judge it against the themes only: "supported", "partly", "not_supported" or "unclear", with a one-sentence reason that cites the approximate shares.
+Return ONLY a JSON object: {"markdown":"...","verdict":"...","verdict_reason":"..."}.`;
 
 /** Simple synonym squashing so near-identical labels count together before grouping. */
 const SYNONYMS: [RegExp, string][] = [
@@ -194,12 +205,15 @@ export async function runInsight(input: InsightInput, opts: InsightOptions = {})
   const cohort_bucket = cohortBucket(users.size);
 
   // 5. Report from the noised shares only.
-  const { data, receipt } = await sealedJson(REPORT_SYSTEM, JSON.stringify({ analysisId, question, cohort_bucket, themes }), { maxTokens: 1500 });
+  const { data, receipt } = await sealedJson(REPORT_SYSTEM, JSON.stringify({ analysisId, question, ...(input.hypothesis ? { hypothesis: input.hypothesis } : {}), cohort_bucket, themes }), { maxTokens: 1500 });
   receipts.push(receipt);
   const md = (data as { markdown?: unknown })?.markdown;
   if (typeof md !== "string" || !md.trim()) throw new ZeroGError("Model did not return a report", 502, "invalid_output");
 
-  return { status: "ok", analysisId, cohort_bucket, themes, report_markdown: scrub(md, input.items), receipts, privacy };
+  const out = data as { verdict?: unknown; verdict_reason?: unknown };
+  const verdict = input.hypothesis && VERDICTS.includes(out.verdict as Verdict) ? (out.verdict as Verdict) : "unclear";
+  const verdict_reason = input.hypothesis && typeof out.verdict_reason === "string" ? scrub(out.verdict_reason.trim(), input.items).slice(0, 300) : "";
+  return { status: "ok", analysisId, cohort_bucket, themes, report_markdown: scrub(md, input.items), verdict, verdict_reason, receipts, privacy };
 }
 
 function majority(themes: string[]): string | undefined {
