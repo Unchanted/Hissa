@@ -4,6 +4,7 @@ import { ALIASES, DEPLOYMENT, TOKEN_LABEL, readFact } from './chain.js';
 import { confirmDraft, deriveFinding, fmt, loadPlan, savePlan } from './plan.js';
 import { buildRevoke, connect, sendRevoke, switchToLocal, waitReceipt, type RevokePreview } from './wallet.js';
 import { extractPlan, type InferenceOutcome } from './inference.js';
+import { MemoryPanel } from './MemoryPanel.js';
 
 const DEFAULT_TEXT = 'Move 800 USDC to my repayment wallet B to repay 500 USDC.';
 const EMPTY_DRAFT: PlanDraft = { sourceAlias: 'A', destinationAlias: 'B', token: 'USDC', fundingAmount: '', repaymentAmount: null };
@@ -198,6 +199,22 @@ export function App() {
               )}
             </>
           )}
+
+          <MemoryPanel
+            plan={plan}
+            onRestored={(p) => {
+              setPlan(p);
+              savePlan(p);
+              setRevoke({ step: 'idle' });
+              void refresh(p);
+            }}
+            onForgetLocal={() => {
+              setPlan(null);
+              savePlan(null);
+              setFact(null);
+              setRevoke({ step: 'idle' });
+            }}
+          />
 
           {draft && (
             <DraftEditor

@@ -328,3 +328,30 @@ details ul {
     grid-template-columns: 1fr;
   }
 }
+
+.memory {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--strip-edge);
+}
+.memory h3 {
+  margin-top: 0;
+}
+.restore .inline {
+  display: flex;
+  gap: 8px;
+}
+.restore .inline input {
+  flex: 1;
+}
+.file-label {
+  margin-top: 12px;
+  font-weight: 400;
+  font-size: 0.9rem;
+}
+.cleared-note {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--clear);
+  background: var(--clear-wash);
+}
