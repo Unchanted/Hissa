@@ -10,3 +10,5 @@ coverage/
 contracts/out/
 evidence/private/
 *.preflight-backup.json
+
+.vercel
