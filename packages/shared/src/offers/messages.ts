@@ -1,6 +1,6 @@
 // Publisher <-> Preflight frame message contract. Strict allowlist; unknown keys are rejected.
 import { z } from 'zod';
-import { OfferContext } from './schemas.js';
+import { ApprovedOfferTopics, Consent, OfferContext } from './schemas.js';
 
 export const Nonce = z.string().regex(/^[A-Za-z0-9_-]{22,64}$/);
 
@@ -21,6 +21,30 @@ export const ReadyMessage = z.strictObject({
   sessionNonce: Nonce,
 });
 export type ReadyMessage = z.infer<typeof ReadyMessage>;
+
+// Handoff window -> slot frame. Both are on the Preflight origin; never sent to the publisher.
+export const PrefsMessage = z.strictObject({
+  v: z.literal(1),
+  type: z.literal('PREFS'),
+  handoffNonce: Nonce,
+  approved: ApprovedOfferTopics,
+  consent: Consent,
+});
+export type PrefsMessage = z.infer<typeof PrefsMessage>;
+
+export const RevokeMessage = z.strictObject({
+  v: z.literal(1),
+  type: z.literal('REVOKE'),
+  handoffNonce: Nonce,
+});
+export type RevokeMessage = z.infer<typeof RevokeMessage>;
+
+// Slot frame -> handoff window, so the open preferences window reflects an opt-out made in the frame.
+export const FrameRevokedMessage = z.strictObject({
+  v: z.literal(1),
+  type: z.literal('FRAME_REVOKED'),
+  handoffNonce: Nonce,
+});
 
 export interface PublisherRegistration {
   publisherId: string;

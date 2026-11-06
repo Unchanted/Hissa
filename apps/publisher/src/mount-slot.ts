@@ -20,7 +20,7 @@ export function mountPreflightSlot(element: HTMLElement, opts: SlotOptions): { r
   frame.src = `${opts.preflightOrigin}/slot.html`;
   frame.title = 'Sponsored';
   frame.width = '300';
-  frame.height = '160';
+  frame.height = '180';
   frame.style.border = '0';
   frame.referrerPolicy = 'no-referrer';
   // Scripts + own origin for frame storage; popups for the user-initiated handoff. No top navigation.

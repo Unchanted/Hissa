@@ -1,0 +1,45 @@
+.handoff {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+.handoff h1 {
+  font: 600 2rem/1 var(--display);
+  margin: 0 0 8px;
+  padding-bottom: 12px;
+  border-bottom: 3px solid var(--ink);
+}
+.handoff h2 {
+  font: 600 1.35rem/1.1 var(--display);
+  margin: 24px 0 8px;
+}
+.lede {
+  color: var(--ink-soft);
+}
+.handoff fieldset {
+  border: 0;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.handoff legend {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+label.check {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-weight: 400;
+  margin: 6px 0;
+}
+label.check input {
+  width: auto;
+}
+.tag {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.tag.ok {
+  color: var(--clear);
+  font-weight: 700;
+}
