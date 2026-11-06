@@ -55,7 +55,9 @@ if (again.balanceRaw !== baseline.balanceRaw || again.allowanceRaw !== baseline.
 const revoke = await waitOk(await b.writeContract({ address: dep.token, abi: mockUsdc.abi, functionName: 'approve', args: [dep.spender, 0n] }));
 const transfer2 = await waitOk(await a.writeContract({ address: dep.token, abi: mockUsdc.abi, functionName: 'transfer', args: [dep.walletB, FUNDING_RAW] }));
 
-let drainAttempt: { reverted: boolean; reason?: string; simulated: true };
+// First learn the revert reason with eth_call, then send the same call as a real transaction
+// with a fixed gas limit (skipping estimation) so it is mined and its receipt shows the revert.
+let reason: string | undefined;
 try {
   await publicClient.simulateContract({
     account: roles.sink,
@@ -64,12 +66,35 @@ try {
     functionName: 'drain',
     args: [dep.token, dep.walletB, dep.sink, FUNDING_RAW],
   });
-  drainAttempt = { reverted: false, simulated: true };
 } catch (err) {
   const revertErr = err instanceof BaseError ? err.walk((e) => e instanceof ContractFunctionRevertedError) : null;
-  const reason = revertErr instanceof ContractFunctionRevertedError ? (revertErr.reason ?? revertErr.shortMessage) : String((err as Error).message).split('\n')[0];
-  drainAttempt = { reverted: true, reason, simulated: true };
+  reason = revertErr instanceof ContractFunctionRevertedError ? (revertErr.reason ?? revertErr.shortMessage) : String((err as Error).message).split('\n')[0];
 }
+
+const blockBefore = await publicClient.getBlockNumber();
+let drainHash: Hex | undefined;
+try {
+  drainHash = await attacker.writeContract({
+    address: dep.spender,
+    abi: testSpender.abi,
+    functionName: 'drain',
+    args: [dep.token, dep.walletB, dep.sink, FUNDING_RAW],
+    gas: 200_000n,
+  });
+} catch {
+  // Some nodes return an error for a mined-but-reverted transaction; find it in the next block.
+  const block = await publicClient.getBlock({ blockNumber: blockBefore + 1n }).catch(() => null);
+  drainHash = block?.transactions[0];
+}
+if (!drainHash) throw new Error('revoke-first drain transaction was not mined');
+const drainReceipt = await publicClient.waitForTransactionReceipt({ hash: drainHash });
+const drainAttempt = {
+  hash: drainHash,
+  status: drainReceipt.status,
+  blockNumber: drainReceipt.blockNumber.toString(),
+  reverted: drainReceipt.status === 'reverted',
+  reason: reason ?? 'unknown',
+};
 
 const revokeFirst = {
   sequence: ['B.approve(S, 0)', 'A.transfer(B, 800)', 'S.drain(B -> sink, 800) attempt'],
@@ -97,7 +122,7 @@ const out = writeJson('evidence/local-evm/ordering-proof.json', {
   transferFirst,
   revokeFirst,
   result: ok ? 'PASS: transfer-first drained 800; revoke-first drain reverted and B kept 800' : 'FAIL',
-  note: 'Drain attempt in revoke-first is an eth_call against the post-transfer state; a revert there means a sent transaction would also revert at that state.',
+  note: 'Revoke-first drain was sent as a real transaction with a fixed gas limit; its mined receipt has status reverted. The revert reason comes from an eth_call of the same call at the same state.',
 });
 
 console.log(JSON.stringify({ transferFirst: transferFirst.finalBalances, revokeFirst: revokeFirst.finalBalances, drainAttempt }, null, 2));

@@ -28,7 +28,7 @@ pnpm chain:proof     # writes evidence/local-evm/ordering-proof.json
 | Item | Status |
 | --- | --- |
 | `evidence/local-evm/seed.json` | Run on Hardhat Network 2.29.1 (EDR 0.3.8), chain 31337, as a stand-in because Foundry was not yet installed. Same addresses Anvil produces from the same mnemonic. To be rerun on Anvil. |
-| `evidence/local-evm/ordering-proof.json` | PASS on the same Hardhat node: transfer-first drained 800 fUSDC from B to the sink; revoke-first drain reverted with "insufficient allowance" and B kept 800. The revoke-first drain is an `eth_call` at the post-transfer state, not a mined transaction. |
+| `evidence/local-evm/ordering-proof.json` | PASS on the same Hardhat node: transfer-first drained 800 fUSDC from B to the sink; revoke-first drain was sent as a real transaction (fixed gas limit), mined, and its receipt has status `reverted` ("insufficient allowance"); B kept 800 and allowance is 0. |
 
 ## Unit tests
 

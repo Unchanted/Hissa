@@ -1,6 +1,6 @@
 {
   "label": "Real local EVM execution on simulated fixture state. Test spender deliberately permits the exercise.",
-  "generatedAt": "2026-11-06T07:38:34.534Z",
+  "generatedAt": "2026-11-06T07:40:41.117Z",
   "node": {
     "chainId": 31337,
     "clientVersion": "HardhatNetwork/2.29.1/@nomicfoundation/edr/0.3.8"
@@ -70,9 +70,11 @@
       }
     },
     "drainAttempt": {
+      "hash": "0x3d101c8977f77f8a1878d4dd3fa9c257a9fb34ed41257a2c58f9d274c364cb31",
+      "status": "reverted",
+      "blockNumber": "7",
       "reverted": true,
-      "reason": "insufficient allowance",
-      "simulated": true
+      "reason": "insufficient allowance"
     },
     "finalBalances": {
       "A": "0",
@@ -82,5 +84,5 @@
     "finalAllowanceBS": "0"
   },
   "result": "PASS: transfer-first drained 800; revoke-first drain reverted and B kept 800",
-  "note": "Drain attempt in revoke-first is an eth_call against the post-transfer state; a revert there means a sent transaction would also revert at that state."
+  "note": "Revoke-first drain was sent as a real transaction with a fixed gas limit; its mined receipt has status reverted. The revert reason comes from an eth_call of the same call at the same state."
 }
