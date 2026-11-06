@@ -5,8 +5,9 @@
  *   treasury ──scheduled transfer──▶ seller   (80% of what the seller earned)
  *
  * The agent's key stays on this server; the browser only asks it to act. Listings
- * live in memory here until the Arkiv lane replaces them, and consent is checked
- * before any payment is requested. Run from the repo root: `npm run demo:api`.
+ * live encrypted on Arkiv. Consent is checked before payment and record release;
+ * earnings are derived from persisted receipts. Run `npm run arkiv:setup` first,
+ * then from the repo root: `npm run demo:api`.
  *
  *   GET    /health                       mode + account IDs
  *   GET    /api/balances                 live balances from the mirror node
@@ -41,6 +42,9 @@ import { AgentPayer } from "../../../packages/pay/src/payer.js";
 import { logPaymentToHcs, type AgentPaymentLog } from "../../../packages/pay/src/hcs.js";
 import { aiRoutes } from "../../../packages/ai/src/routes.js";
 import { CHAT_MODELS, ROUTER_URL } from "../../../packages/ai/src/zerog.js";
+import { createArkivAppStore } from "../../../packages/arkiv/src/app-store.ts";
+import { createAppListingRoutes } from "./routes/app-listings.ts";
+import { createSettlementOutbox } from "../../../packages/arkiv/src/settlement-outbox.ts";
 
 const treasuryId = requireEnv("HEDERA_TREASURY_ID");
 const treasuryKey = parseEcdsaKey(requireEnv("HEDERA_TREASURY_KEY"));
@@ -53,7 +57,6 @@ const self = `http://localhost:${port}`;
 
 const RECORD_PRICE = hbarToTinybars(1);
 const CONTACT_PRICE = hbarToTinybars(0.5);
-const SELLER_SHARE_PCT = 80n;
 const PER_PURCHASE = hbarToTinybars(Number(process.env["AGENT_MAX_PER_PURCHASE_HBAR"] ?? 5));
 const DAILY = hbarToTinybars(Number(process.env["AGENT_DAILY_CAP_HBAR"] ?? 25));
 /** Keep the agent funded between rehearsals: top up from the treasury below this. */
@@ -63,19 +66,19 @@ const AGENT_TOPUP_TO_HBAR = 30;
 const treasury = clientFor(treasuryId, treasuryKey);
 const agentClient = clientFor(agentId, agentKey);
 
-/* ---------- listings (in memory until the Arkiv lane is wired in) ---------- */
-
-type Listing = { id: string; consentSale: boolean; consentContact: boolean; live: boolean; payoutAccount?: string };
-const listings = new Map<string, Listing>(
-  // Other synthetic sellers in the demo; they have no payout account here.
-  ["lst_c04e", "lst_a19f", "lst_5d72"].map((id) => [id, { id, consentSale: true, consentContact: false, live: true }]),
-);
-
-/** Tinybars owed to each seller account, from settled sales and messages. */
-const owed = new Map<string, bigint>();
-
 type Receipt = { kind: string; listing?: string; txId: string; hashscan: string; amountHbar: string; at: string; hcsSeq?: string };
-const receipts: Receipt[] = [];
+const store = await createArkivAppStore({
+  privateKey: requireEnv("ARKIV_WRITER_PRIVATE_KEY") as `0x${string}`,
+  accessKey: process.env["ARKIV_ACCESS_KEY"]?.trim() ?? "",
+  journalDirectory: "evidence/private/arkiv-writer",
+  maxCostWei: BigInt(requireEnv("ARKIV_MAX_TX_COST_WEI")),
+  serviceKey: requireEnv("SERVICE_PRIVATE_KEY"), sellerAccount,
+});
+const settlementOutbox = await createSettlementOutbox("evidence/private/arkiv-writer/settlements");
+for (const payment of await settlementOutbox.pending()) {
+  await store.recordPayment(payment);
+  await settlementOutbox.acknowledge(payment.txId);
+}
 
 /* ---------- helpers ---------- */
 
@@ -116,41 +119,35 @@ const errorText = (msg: string) => {
 /* ---------- app ---------- */
 
 const app = new Hono();
-app.use("*", cors({ origin: "*", exposeHeaders: ["PAYMENT-REQUIRED", "PAYMENT-RESPONSE"] }));
+const origins = new Set(["http://localhost:5173", "http://127.0.0.1:5173"]);
+app.use("*", async (c, next) => {
+  const origin = c.req.header("Origin");
+  if (origin && !origins.has(origin)) return c.json({ error: "Untrusted origin" }, 403);
+  await next();
+});
+app.use("*", cors({ origin: (origin) => origins.has(origin) ? origin : "", exposeHeaders: ["PAYMENT-REQUIRED", "PAYMENT-RESPONSE"] }));
+app.onError((_, c) => c.json({ error: "Request failed; check server state before retrying a payment" }, 503));
+let uploadWindow = Date.now();
+let uploads = 0;
+app.use("/api/listings", async (c, next) => {
+  if (c.req.method === "POST") {
+    if (Date.now() - uploadWindow > 60000) { uploadWindow = Date.now(); uploads = 0; }
+    if (++uploads > 5) return c.json({ error: "Upload attempt limit reached; wait one minute" }, 429);
+  }
+  await next();
+});
 
 app.get("/health", (c) =>
-  c.json({ ok: true, network: "hedera:testnet", accounts: { treasury: treasuryId, agent: agentId, seller: sellerAccount, topic: topicId } }),
+  c.json({ ok: true, network: "hedera:testnet", arkiv: true, accounts: { treasury: treasuryId, agent: agentId, seller: sellerAccount, topic: topicId } }),
 );
+app.get("/api/arkiv/config", (c) => c.json({ publicKey: store.publicKey, writer: store.writer, chainId: 7794095 }));
 
 app.get("/api/balances", async (c) => {
   const [agent, seller, treasuryBal] = await Promise.all([balanceOf(agentId), balanceOf(sellerAccount), balanceOf(treasuryId)]);
-  return c.json({ agent, seller, treasury: treasuryBal, owedToSeller: Number(tinybarsToHbar(owed.get(sellerAccount) ?? 0n)) });
+  return c.json({ agent, seller, treasury: treasuryBal, owedToSeller: Number(tinybarsToHbar(await store.balance(sellerAccount))) });
 });
-
-app.post("/api/listings", async (c) => {
-  const b = (await c.req.json()) as { listingId: string; consentSale: boolean; consentContact: boolean };
-  if (!/^lst_[0-9a-z]{2,16}$/.test(b.listingId)) return c.json({ error: "bad listing id" }, 400);
-  listings.set(b.listingId, { id: b.listingId, consentSale: !!b.consentSale, consentContact: !!b.consentContact, live: true, payoutAccount: sellerAccount });
-  return c.json({ ok: true });
-});
-
-app.patch("/api/listings/:id", async (c) => {
-  const l = listings.get(c.req.param("id"));
-  if (!l) return c.json({ error: "listing not found" }, 404);
-  const b = (await c.req.json()) as { consentSale?: boolean; consentContact?: boolean };
-  if (typeof b.consentSale === "boolean") l.consentSale = b.consentSale;
-  if (typeof b.consentContact === "boolean") l.consentContact = b.consentContact;
-  return c.json({ ok: true, listing: l });
-});
-
-app.delete("/api/listings/:id", (c) => {
-  const l = listings.get(c.req.param("id"));
-  if (!l) return c.json({ error: "listing not found" }, 404);
-  l.live = false;
-  return c.json({ ok: true });
-});
-
-app.get("/api/receipts", (c) => c.json({ items: receipts }));
+app.route("/api/listings", createAppListingRoutes(store));
+app.get("/api/receipts", async (c) => { c.header("Cache-Control", "no-store"); return c.json(await store.publicReceipts()); });
 
 // 0G Private Computer (packages/ai, lane C): sealed TEE inference with request IDs.
 app.get("/api/ai/status", (c) =>
@@ -160,13 +157,13 @@ app.route("/api/ai", aiRoutes());
 
 // Refuse before asking for money.
 app.use("/api/records/:id", async (c, next) => {
-  const l = listings.get(c.req.param("id"));
+  const l = await store.getListing(c.req.param("id"));
   if (!l || !l.live) return c.json({ error: "listing revoked or not found" }, 403);
   if (!l.consentSale) return c.json({ error: "consent_sale=false" }, 403);
   await next();
 });
 app.use("/api/contact/:id", async (c, next) => {
-  const l = listings.get(c.req.param("id"));
+  const l = await store.getListing(c.req.param("id"));
   if (!l || !l.live) return c.json({ error: "listing revoked" }, 403);
   if (!l.consentContact) return c.json({ error: "consent_contact=false" }, 403);
   await next();
@@ -179,19 +176,18 @@ app.use(
       "GET /api/records/:id": { description: "One masked, watermarked data record", priceTinybars: RECORD_PRICE },
       "POST /api/contact/:id": { description: "One paid Telegram message to a seller, via the relay", priceTinybars: CONTACT_PRICE },
     },
-    onSettled: (p) => {
+    onSettled: async (p) => {
       const id = p.resource.split("/").pop() ?? "";
-      const l = listings.get(id);
-      if (l?.payoutAccount) {
-        const share = (BigInt(p.amountTinybars) * SELLER_SHARE_PCT) / 100n;
-        owed.set(l.payoutAccount, (owed.get(l.payoutAccount) ?? 0n) + share);
-      }
+      const payment = await settlementOutbox.remember({ kind: p.resource.includes("/contact/") ? "contact_purchase" : "record_purchase",
+        listing: id, txId: p.txId, hashscan: hashscan.tx(p.txId), amountTinybars: p.amountTinybars, at: new Date().toISOString() });
+      await store.recordPayment(payment);
+      await settlementOutbox.acknowledge(payment.txId);
       console.log(`[x402] ${tinybarsToHbar(p.amountTinybars)} HBAR ${p.payer} → ${p.payTo} for ${id}  ${hashscan.tx(p.txId)}`);
     },
   }),
 );
 
-app.get("/api/records/:id", (c) => c.json({ record: { listing_id: c.req.param("id"), watermark: "buyer-scoped" } }));
+app.get("/api/records/:id", async (c) => c.json({ record: await store.readRecord(c.req.param("id")) }));
 app.post("/api/contact/:id", (c) => c.json({ delivered: true, via: "telegram-relay" }));
 
 async function agentPays(kind: AgentPaymentLog["kind"], listingId: string, budgetLeftHbar: number, init?: RequestInit) {
@@ -201,7 +197,7 @@ async function agentPays(kind: AgentPaymentLog["kind"], listingId: string, budge
   const payer = new AgentPayer(agentId, agentKey, { budget: hbarToTinybars(budgetLeftHbar), perPurchase: PER_PURCHASE, daily: DAILY }, (m) =>
     lines.push(m.trim()),
   );
-  const r = await payer.buy<unknown>(resource, init);
+  const r = await payer.buy<{ record?: unknown }>(resource, init);
   const receipt: Receipt = {
     kind,
     listing: listingId,
@@ -210,7 +206,6 @@ async function agentPays(kind: AgentPaymentLog["kind"], listingId: string, budge
     amountHbar: tinybarsToHbar(r.amountTinybars),
     at: new Date().toISOString(),
   };
-  receipts.push(receipt);
   logHcsInBackground(
     {
       v: 1,
@@ -226,7 +221,7 @@ async function agentPays(kind: AgentPaymentLog["kind"], listingId: string, budge
     },
     receipt,
   );
-  return { ...receipt, policy: lines };
+  return { ...receipt, policy: lines, ...(r.body?.record ? { record: r.body.record } : {}) };
 }
 
 app.post("/agent/buy", async (c) => {
@@ -252,18 +247,19 @@ app.post("/agent/contact", async (c) => {
 
 /** Pays the seller everything owed, as a Hedera Scheduled Transaction signed by the treasury. */
 app.post("/api/payouts", async (c) => {
-  const amount = owed.get(sellerAccount) ?? 0n;
+  const amount = await store.balance(sellerAccount);
   if (amount <= 0n) return c.json({ error: "nothing owed yet" }, 400);
   const hbar = Hbar.fromTinybars(amount.toString());
   const transfer = new TransferTransaction()
     .addHbarTransfer(AccountId.fromString(treasuryId), hbar.negated())
     .addHbarTransfer(AccountId.fromString(sellerAccount), hbar);
-  const create = await new ScheduleCreateTransaction()
+  const pending = new ScheduleCreateTransaction()
     .setScheduledTransaction(transfer)
     .setScheduleMemo(`hissa payout batch ${new Date().toISOString().slice(0, 16)}`)
-    .execute(treasury);
+    .freezeWith(treasury);
+  const reservation = await store.reservePayout(pending.transactionId!.toString(), amount);
+  const create = await pending.execute(treasury);
   const receipt = await create.getReceipt(treasury);
-  owed.set(sellerAccount, 0n);
   const scheduleId = receipt.scheduleId?.toString() ?? "";
   const executedTx = receipt.scheduledTransactionId?.toString().replace(/\?scheduled$/, "") ?? create.transactionId.toString();
   const out: Receipt = {
@@ -273,12 +269,16 @@ app.post("/api/payouts", async (c) => {
     amountHbar: tinybarsToHbar(amount),
     at: new Date().toISOString(),
   };
-  receipts.push(out);
+  await store.completePayout({ kind: "payout", txId: out.txId, hashscan: out.hashscan,
+    amountTinybars: amount.toString(), at: out.at }, reservation.intentKey);
   console.log(`[payout] ${out.amountHbar} HBAR ${treasuryId} → ${sellerAccount}  schedule ${scheduleId}`);
   return c.json({ ...out, scheduleId, seller: sellerAccount, createTx: create.transactionId.toString() });
 });
 
 await ensureAgentFunded().catch((e) => console.warn(`Agent top-up check failed: ${(e as Error).message}`));
-serve({ fetch: app.fetch, port }, () => {
+const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
   console.log(`Hissa demo API on ${self}  (treasury ${treasuryId}, agent ${agentId}, seller ${sellerAccount})`);
+});
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => {
+  server.close(() => { void store.close().finally(() => { treasury.close(); agentClient.close(); process.exit(0); }); });
 });

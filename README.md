@@ -96,8 +96,22 @@ until the Arkiv and 0G lanes are wired in.
 
 ## Arkiv
 
-The encrypted-storage and listing-lifecycle probes passed and their temporary
-code/dependencies were removed. Public results remain in `evidence/`. The Hedera payment flow above is runnable; the rest of the application is not built yet.
+The web app now publishes real encrypted listings, discovers them from Rabdi, signs consent/revoke requests, and reads durable activity/payment receipts. Seller earnings come from Arkiv receipts rather than an in-memory balance map.
+
+```sh
+npm ci
+npm --prefix packages/arkiv ci
+npm --prefix apps/web ci
+npm run arkiv:setup      # preserves existing keys; creates service key and browser pin, sends no transactions
+npm run demo:api        # terminal 1; review .env transaction cap and existing Hedera testnet configuration first
+npm run demo:web        # terminal 2; restart Vite after key setup
+```
+
+Use **sample export** or a supported ChatGPT/Claude JSON file, review the masked text, and publish. Keep the browser session: it contains the listing control key and any pending signed request. Publication success, consent changes and deletion use confirmed Arkiv transaction hashes. The live agent and ledger use the server API; they do not invent payment results after an API error.
+
+The API binds to loopback and permits the local Vite origins. This remains a single-seller testnet demo, not a publicly authenticated production deployment. The separate 0G insights demonstration still uses its synthetic cohort; it is labelled accordingly and does not analyse uploaded records. Local masking currently covers basic emails/phone numbers, with manual review; unsupported export formats are rejected. No new funded end-to-end rehearsal was run as part of this integration.
+
+The earlier encrypted-storage and lifecycle probe evidence remains in `evidence/`. See [Arkiv package documentation](packages/arkiv/README.md) for protocol and recovery details.
 
 The funded Rabdi writer key remains in the ignored local `.env`; the synthetic
 record/key journal remains in ignored `evidence/private/`. Keep both private.
