@@ -128,7 +128,13 @@ const errorText = (msg: string) => {
 /* ---------- app ---------- */
 
 const app = new Hono();
-const origins = new Set(["http://localhost:5173", "http://127.0.0.1:5173"]);
+// Browser origins allowed to call the API: local dev plus ALLOWED_ORIGINS (comma-separated),
+// e.g. the Vercel deployment "https://hissa.vercel.app".
+const origins = new Set([
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  ...(process.env["ALLOWED_ORIGINS"] ?? "").split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean),
+]);
 app.use("*", async (c, next) => {
   const origin = c.req.header("Origin");
   if (origin && !origins.has(origin)) return c.json({ error: "Untrusted origin" }, 403);
@@ -368,7 +374,8 @@ app.post("/api/payouts", async (c) => {
 });
 
 await ensureAgentFunded().catch((e) => console.warn(`Agent top-up check failed: ${(e as Error).message}`));
-const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
+// HOST=0.0.0.0 when running in a container; the default keeps the API on this machine only.
+const server = serve({ fetch: app.fetch, port, hostname: process.env["HOST"] ?? "127.0.0.1" }, () => {
   console.log(`Hissa demo API on ${self}  (treasury ${treasuryId}, agent ${agentId}, seller ${sellerAccount})`);
 });
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => {
