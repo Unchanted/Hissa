@@ -1,0 +1,26 @@
+# Demo API (apps/server/src/api.ts). Long-lived process; see docs/deploy.md.
+FROM node:22-slim
+WORKDIR /app
+
+# Root deps (Hedera, x402, hono, tsx)
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Arkiv SDK deps live in packages/arkiv
+COPY packages/arkiv/package.json packages/arkiv/package-lock.json packages/arkiv/
+RUN npm --prefix packages/arkiv ci
+
+# Source
+COPY tsconfig.json ./
+COPY apps/server apps/server
+COPY apps/agent apps/agent
+COPY packages packages
+
+# Arkiv journal is written to evidence/private/arkiv-writer (relative to cwd).
+# Mount a persistent volume at /app/evidence.
+RUN mkdir -p /app/evidence
+VOLUME ["/app/evidence"]
+
+ENV HOST=0.0.0.0 PORT=4021
+EXPOSE 4021
+CMD ["npm", "run", "demo:api"]
