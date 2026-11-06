@@ -1,0 +1,20 @@
+{
+  "name": "preflight",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.24.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter './apps/**' dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "contracts:compile": "pnpm --filter @preflight/chain compile",
+    "chain:seed": "pnpm --filter @preflight/chain seed",
+    "chain:proof": "pnpm --filter @preflight/chain proof"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
