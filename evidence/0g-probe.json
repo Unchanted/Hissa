@@ -1,0 +1,98 @@
+{
+  "at": "2026-11-06T18:14:54.444Z",
+  "router": "https://router-api.0g.ai/v1",
+  "key_present": false,
+  "input": "synthetic",
+  "summary": {
+    "pass": 4,
+    "fail": 0,
+    "skip": 4
+  },
+  "checks": [
+    {
+      "name": "models.list",
+      "status": "PASS",
+      "detail": "125 models, 3 TeeML chat models",
+      "latency_ms": 1849,
+      "data": {
+        "total": 125,
+        "tee_chat_models": [
+          {
+            "id": "0gm-1.0-35b-a3b",
+            "provider_count": 1,
+            "response_format": true,
+            "chat_template_kwargs": true,
+            "tee_type": "TDX",
+            "tee_verifier": "dstack"
+          },
+          {
+            "id": "0gm-1.0-35b-a3b-sia",
+            "provider_count": 1,
+            "response_format": false,
+            "chat_template_kwargs": true,
+            "tee_type": "TDX",
+            "tee_verifier": "dstack"
+          },
+          {
+            "id": "glm-5.3",
+            "provider_count": 2,
+            "response_format": true,
+            "chat_template_kwargs": true,
+            "tee_type": null,
+            "tee_verifier": "dstack"
+          }
+        ],
+        "non_tee_chat_models": 98
+      }
+    },
+    {
+      "name": "models.glm-5.3",
+      "status": "PASS",
+      "detail": "TeeML, 2 provider(s), response_format + chat_template_kwargs supported"
+    },
+    {
+      "name": "models.0gm-1.0-35b-a3b",
+      "status": "PASS",
+      "detail": "TeeML, 1 provider(s), response_format + chat_template_kwargs supported"
+    },
+    {
+      "name": "auth.no_key",
+      "status": "PASS",
+      "detail": "status 401, error.message=\"missing API key\", X-0g-E2ee=sealed",
+      "latency_ms": 1544,
+      "data": {
+        "status": 401,
+        "body": {
+          "_0g": {
+            "source": "gateway"
+          },
+          "error": {
+            "message": "missing API key",
+            "type": "gateway_error"
+          }
+        },
+        "e2ee_header": "sealed"
+      }
+    },
+    {
+      "name": "private.<model>",
+      "status": "SKIP",
+      "detail": "ZG_API_KEY not set"
+    },
+    {
+      "name": "private.non_tee_refused",
+      "status": "SKIP",
+      "detail": "ZG_API_KEY not set"
+    },
+    {
+      "name": "upload.planted_names x3",
+      "status": "SKIP",
+      "detail": "ZG_API_KEY not set"
+    },
+    {
+      "name": "ratelimit.parallel5",
+      "status": "SKIP",
+      "detail": "ZG_API_KEY not set"
+    }
+  ]
+}

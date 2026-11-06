@@ -28,9 +28,28 @@ export class ZeroGError extends Error {
     message: string,
     readonly status: number,
     readonly code?: string,
+    /** From the Retry-After header on a 429, if the Router sent one. */
+    readonly retryAfterMs?: number,
   ) {
     super(message);
+    this.name = "ZeroGError";
   }
+}
+
+/** Wait before retrying a 429: ZG_RETRY_WAIT_MS (tests/dev) wins, then Retry-After capped at 30s, then 5s. */
+function retryWaitMs(err: ZeroGError): number {
+  const env = Number(process.env["ZG_RETRY_WAIT_MS"]);
+  if (process.env["ZG_RETRY_WAIT_MS"] !== undefined && Number.isFinite(env) && env >= 0) return env;
+  if (err.retryAfterMs !== undefined) return Math.min(err.retryAfterMs, 30_000);
+  return 5000;
+}
+
+function parseRetryAfter(v: string | null): number | undefined {
+  if (!v) return undefined;
+  const secs = Number(v);
+  if (Number.isFinite(secs) && secs >= 0) return secs * 1000;
+  const at = Date.parse(v);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
 }
 
 function apiKey(): string {
@@ -46,17 +65,20 @@ export async function sealedJson(
   opts: { models?: readonly string[]; maxTokens?: number } = {},
 ): Promise<{ data: unknown; receipt: InferenceReceipt }> {
   const key = apiKey();
+  const models = opts.models ?? CHAT_MODELS;
+  if (models.length === 0) throw new ZeroGError("No private models to try", 400, "no_models");
+  const attempts = 2;
   let last: unknown;
-  for (const model of opts.models ?? CHAT_MODELS) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+  for (const model of models) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
       try {
         return await callOnce(key, model, system, user, opts.maxTokens ?? 4000);
       } catch (e) {
         last = e;
         const err = e as ZeroGError;
         if ([400, 401, 402, 403].includes(err.status)) throw e; // fix the request, don't retry
-        if (err.code === "no_provider_for_trust_mode" || err.status === 503) break; // next model
-        if (err.status === 429) await new Promise((r) => setTimeout(r, 5000));
+        if (err.code === "no_provider_for_trust_mode" || err.status === 503) break; // next model, same trust mode
+        if (err.status === 429 && attempt < attempts - 1) await new Promise((r) => setTimeout(r, retryWaitMs(err)));
       }
     }
   }
@@ -101,8 +123,10 @@ async function callOnce(key: string, model: string, system: string, user: string
           ? "0G balance is empty"
           : res.status === 401
             ? "0G API key missing or invalid"
-            : `0G error ${res.status}: ${body?.error?.message ?? "unknown"}`;
-    throw new ZeroGError(msg, res.status, code);
+            : res.status === 429
+              ? "0G rate limit reached"
+              : `0G error ${res.status}: ${body?.error?.message ?? "unknown"}`;
+    throw new ZeroGError(msg, res.status, code, res.status === 429 ? parseRetryAfter(res.headers.get("retry-after")) : undefined);
   }
   const trace = body?.x_0g_trace ?? {};
   const receipt: InferenceReceipt = {
