@@ -6,24 +6,82 @@ Status: **approved 2026-11-06** with the default decisions and Hedera as the x40
 
 This plan merges our original idea (diagram: local masking → encrypted store on Arkiv → merchants buy via x402) with the parts of the friend's pitch kit that fill gaps. Our plan is the spine. The friend's plan contributes a public search index, expiry as consent, and the merchant query agent. A few new fixes close holes neither version handled.
 
+## 0. Sponsor tracks — the core of the build
+
+0G, Arkiv and Hedera are our three ETHGlobal partner picks (Arkiv counts as one pick). Each one carries a part of the product that breaks without it. Track requirements below were read from the ETHGlobal Mumbai prize pages on 2026-11-06 ([0G](https://ethglobal.com/events/mumbai/prizes/0g), [Arkiv](https://ethglobal.com/events/mumbai/prizes/arkiv), [Hedera](https://ethglobal.com/events/mumbai/prizes/hedera)).
+
+| Sponsor | Target track | Role in the product | What breaks if removed |
+| --- | --- | --- | --- |
+| **Hedera** | AI Agents That Pay: x402 on Hedera ($6,500) | Every purchase (record or insight report) is an x402 payment settled on Hedera; user payouts are Hedera transfers | Merchants cannot pay per record or per report, and users cannot be paid |
+| **0G** | Build with 0G Private Computer ($5,000) | Private inference on masked text: facet extraction at upload; for insights, question → analysis spec, query-time labelling, theme naming and report writing | No insights product at all, and no structured facets for record sales |
+| **Arkiv** | Build on Arkiv, from scratch ($4,000) | The marketplace itself: encrypted listings with public tags, consent toggles, expiry as the consent window, sale and insight receipts | No shared listing index for merchants to browse, no enforceable consent window, no public audit of sales and privacy parameters |
+
+### 0.1 Hedera — "AI Agents That Pay: x402 on Hedera"
+
+Must show, and how we meet it:
+- **An x402-protected endpoint settling on Hedera through a listed facilitator** (official x402, Ax402, Blocky402, or our own): `GET /records/:key` and `POST /insights` on our server.
+- **An agent that finds the endpoint and completes a paid request end to end with no human approving:** the merchant agent discovers endpoints from Arkiv listings, then pays and retries on its own within a merchant-set budget. The demo must not have a "click to pay" step.
+- **README** with setup, architecture, payment flow and the Hedera transaction ID of at least one settled payment.
+- **Demo video ≤ 5 minutes** showing a payment settling, linked on HashScan.
+
+Extra points we target:
+- **Spending controls:** per-merchant budget, per-purchase cap and daily cap enforced by the agent.
+- **HCS topic as a tamper-evident audit log** of the merchant agent's spending (one message per payment).
+- **Scheduled Transactions** for the fixed-schedule batched user payouts.
+- **Hedera Agent Kit** for the merchant agent's Hedera actions, with 0G as its model. **verify:** Agent Kit works with an OpenAI-compatible endpoint such as the 0G router.
+- Optional: settle in an HTS token (USDC) instead of HBAR; agent identity via ERC-8004 or HCS-14.
+
+### 0.2 0G — "Build with 0G Private Computer"
+
+Must show, and how we meet it:
+- **Inference on 0G Private Computer in the main user flow, with request IDs:** the insights pipeline cannot run without 0G, and every report lists the 0G request IDs used. Upload-time facet extraction also shows its request ID on the review screen.
+- **A working app a judge can try, with a reason to come back tomorrow:** users come back to see earnings grow; merchants come back to ask new questions as new data arrives.
+- **One sentence on what breaks if 0G is removed:** "Without 0G there are no insights: nothing can turn a merchant's question into a cohort analysis or turn masked chats into labelled themes, privately."
+- **Not wanted by judges:** generic chat wrappers and removable AI. Our AI is the analysis engine, not a chat box.
+
+Bonus to consider: merchants sign in with their 0G account (iAI) and the insights analysis spends their own credits. **verify:** iAI sign-in flow and effort.
+
+Use the private (TEE) route, record request IDs and verification results, and never claim privacy from a header alone.
+
+### 0.3 Arkiv — "Build on Arkiv (from scratch)"
+
+Must show, and how we meet it:
+- **Writes to Arkiv's current testnet (Rabdi) with `@arkiv-network/sdk`:** every listing, consent change, sale receipt and insight receipt.
+- **At least one user-visible feature reads its data from Arkiv:** merchant browsing and agent discovery query `dm.listing`; the user's "my listings" page reads entity state and expiry; a public audit page reads `dm.sale` and `dm.insight_receipt`. Arkiv is never just a log nothing reads.
+- **README:** writer wallet address(es) and one runnable query.
+- **Required files:** `/arkiv/schema.md`, `/arkiv/friction.md`, plus one per judging criterion: `/arkiv/reach.md`, `/arkiv/why-arkiv.md`, `/arkiv/how-you-use-arkiv.md`. The four criteria (feedback, reach, why Arkiv, how you use Arkiv) are weighted 25% each, so these files are first-class deliverables.
+- **Public repo with an open-source license** and a statement of how AI was used.
+
+Optional: **Arkiv + Swarm bonus ($500).** Store encrypted payloads larger than Arkiv's 128 KiB `bytes` budget on Swarm, with the Swarm reference on the Arkiv listing. The payload is already encrypted by us, so the reference must point to an unencrypted Swarm upload of our ciphertext; an encrypted Swarm reference contains its key and must never go into a public entity.
+
+### 0.4 Submission artifacts shared across tracks
+
+- One demo video under 3 minutes (fits 0G's limit and Hedera's 5-minute limit), showing: masking on the device, a listing appearing on Arkiv, the merchant agent paying autonomously with a HashScan link, an insights report with 0G request IDs, and the public receipt read back from Arkiv.
+- Public GitHub repo, open-source license, README with setup, architecture, payment flow, Hedera tx IDs, Arkiv writer addresses and query, 0G request IDs, and how AI was used.
+- Live demo link a judge can try.
+
 ## 1. What came from where
 
 | Area | Kept from our plan | Taken from friend's plan | New fix |
 | --- | --- | --- | --- |
 | Input | AI chat, social chat (image/audio later) | — | Text-only MVP, images/audio on roadmap |
 | Privacy step | Masking runs on the user's device | Fixed tag vocabulary | User review screen before anything leaves the device |
-| What is sold | The masked data record itself | — | Contact info is **not** sold (it turns the product into a phishing list) |
+| What is sold | The masked data record itself | — | Aggregated, anonymised **insight reports** as the main product; contact info is **not** sold (it turns the product into a phishing list) |
 | Storage | Encrypted record on Arkiv | Coarse public tags on Arkiv for free browsing | No user wallet in public attributes; writes from a platform writer wallet |
-| Consent | User chooses what to sell | Arkiv expiry (BTL) as the consent window | Revoke deletes the release key, so expiry and revoke really stop sales |
-| Merchant side | Merchant states requirement to an AI agent | 0G inference turns one sentence into a structured query | — |
+| Consent | User chooses what to sell | Arkiv expiry (BTL) as the consent window | Two toggles per upload: "use in aggregate insights" and "allow sale of my record". Revoke deletes the release key, so expiry and revoke really stop use |
+| Merchant side | Merchant states requirement to an AI agent | 0G inference turns one sentence into a structured query | 0G also runs the insights analysis and writes the report |
 | Payment | x402 purchase of a specific record | x402 per record on Hedera, agent pays per unlock | — |
 | Key release | Buyer gets access to that record after payment | — | Buyer never gets the stored key; the record is re-encrypted to the buyer with a per-buyer watermark |
-| Payout | App pays users from x402 revenue | — | Dispute window before payout; payout recorded on-chain |
+| Payout | App pays users from x402 revenue | — | Dispute window; insight fees split equally among counted users; all payouts batched on a fixed schedule |
 | Fake data | — | Admitted as unsolved | Duplicate detection, per-human cap, buyer disputes; personhood and zkTLS as next steps |
 
 ## 2. Product in one paragraph
 
-A user drops in an AI chat export or a social chat export. The browser parses it, masks personal information, and extracts a structured record: categories, intent, stage, budget band, timeframe, and short masked excerpts. The user reviews exactly what will leave the device, picks which categories may be sold, and sets an expiry. The browser encrypts the record and publishes it to Arkiv, with only coarse tags left public. A merchant types one sentence describing who they want. A merchant AI agent turns it into a structured query, browses matching listings for free, and buys specific records with x402. After payment, the buyer receives that record encrypted to the buyer's own key, watermarked so a leak traces back to them. The user is paid their share of each sale.
+> Architecture, data flows, diagrams and the analytics pipeline are in [architecture.md](architecture.md). Where the two documents differ, architecture.md is newer.
+
+**Two products.** *Insights* (main): a merchant asks a question about a cohort, e.g. "why do budget-conscious 18–24s abandon our serum?", and receives an **anonymised**, aggregated report, never any individual record. *Record sale*: a merchant buys one **pseudonymised** masked record. Each upload carries two consent toggles, one per product.
+
+A user drops in an AI chat export or a social chat export. The browser parses it, masks personal information, and extracts a structured record: categories, intent, stage, budget band, timeframe, and short masked excerpts. The user reviews exactly what will leave the device, sets the two consent toggles and an expiry. The browser encrypts the record and publishes it to Arkiv, with only coarse tags left public. A merchant types one sentence describing who they want. A merchant AI agent turns it into a structured query, browses matching listings for free, and buys specific records with x402. After payment, the buyer receives that record encrypted to the buyer's own key, watermarked so a leak traces back to them. The user is paid their share of each sale.
 
 ## 3. Flows
 
@@ -41,7 +99,7 @@ A user drops in an AI chat export or a social chat export. The browser parses it
 1. Merchant types a sentence, e.g. "people in India comparing laptops under ₹1L who plan to buy this month".
 2. The merchant agent calls 0G inference to turn it into JSON. The JSON is validated against the public tag schema; invalid output is rejected, and a rule-based parser is the fallback.
 3. Arkiv query on public attributes (free). The preview shows listing id, coarse tags, quality tier, freshness and price, never content.
-4. The agent requests `GET /api/records/:id` with an ephemeral buyer public key. The server answers HTTP 402 with x402 payment requirements: price in HBAR, `payTo` = platform treasury account on Hedera.
+4. The agent (autonomous, within a merchant-set budget and per-purchase cap; see section 0.1) requests `GET /api/records/:id` with an ephemeral buyer public key. The server answers HTTP 402 with x402 payment requirements: price in HBAR, `payTo` = platform treasury account on Hedera.
 5. The agent pays on Hedera. The facilitator verifies and settles. **verify:** `@x402/hedera` package and the Hedera testnet facilitator; Blocky402 testnet facilitator as the fallback.
 6. The key-release service unwraps the record key, decrypts, applies the per-buyer watermark, re-encrypts to the buyer's public key and returns it. The stored record key never leaves the service.
 7. An unlock receipt is recorded: listing id, hashed buyer id and Hedera payment tx. A payout ledger entry is created for the user.
@@ -70,19 +128,11 @@ expiry:        Arkiv BTL
 
 The public tags are kept coarse on purpose. Fine-grained fields live only in the encrypted payload. **verify:** Arkiv SDK supports querying by multiple indexed attributes, and the cost and latency of writes.
 
-### Encrypted payload (what the buyer pays for)
+Two more public attributes, `consent_insights` and `consent_sale` (bool), carry the consent toggles. The full Arkiv entity model (`dm.listing`, `dm.sale`, `dm.insight_receipt`) is in [architecture.md §2.1](architecture.md).
 
-```
-categories:      fine-grained category list
-intent:          buying | job_seeking | hiring | learning | researching | ...
-stage:           exploring | comparing | ready_to_buy
-budget_band:     e.g. "50k-1L INR"
-timeframe:       this_week | this_month | this_quarter
-key_phrases:     masked phrases
-excerpts:        up to 3 short masked excerpts
-source_window:   date range of the conversations
-provenance_hash: hash of the original export (for future zkTLS proofs)
-```
+### Encrypted payload
+
+The payload is a **domain-agnostic facet envelope extracted from the data itself**, not a fixed list of fields: subjects mentioned (brands, products, services, topics), what happened (considered, bought, abandoned, complained), sentiment, aspects with reasons, price signals, alternatives, plus a few person-level signals such as age band. See [architecture.md §5](architecture.md).
 
 ## 5. Key custody and leak tracing
 
@@ -139,14 +189,18 @@ To build new: User tab (upload → review → publish → earnings), Merchant ta
 3. **Key custody:** the app server holds wrapped keys and runs release. The operator can read records at release time, and we say so. Release inside a 0G TEE stays on the roadmap, pending verification that 0G private compute can run our code and hold keys.
 4. **MVP inputs:** text exports only (ChatGPT, WhatsApp). Images and audio are on the roadmap, because masking them on the device is much harder.
 5. **Fake-data MVP:** duplicate detection, wallet-based upload cap, dispute window. Personhood proof and zkTLS are on the roadmap.
-6. **0G's role:** merchant sentence → structured query (MVP). Optional user opt-in categorisation and quality scoring of **masked** text on the private TeeML route.
+6. **0G's role:** merchant sentence → structured query; facet extraction from **masked** text at upload (private TeeML route, opt-in, regex fallback on device); for insights, query-time labelling, theme naming and report writing from noised tables.
 7. **Pricing:** fixed price per quality tier in HBAR, 80% of each sale to the user, 20% to the platform.
+
+8. **Insights product:** cohort questions answered with anonymised aggregates. Minimum of about 50 distinct users per cohort (this applies only to insights; the browse-time minimum was removed), one vote per user per metric, noise, small themes merged into "other", no verbatim quotes. The merchant pays one x402 fee per report; the user share is split equally among the users counted. 0G runs the query-time labelling and writes the report.
+9. **Consent:** two toggles per upload, "use in aggregate insights" and "allow sale of my record", both stored on the Arkiv listing and re-checked at use.
 
 ## 10. Demo outline
 
 1. User tab: drop in a ChatGPT export, show masking live, show the review screen, publish. The Network tab shows only ciphertext and coarse tags leaving the device.
 2. Arkiv explorer: the new entity with public tags and ciphertext.
 3. Merchant tab: one sentence → 0G JSON → matching listings.
-4. Agent buys 3 records via x402 on Hedera. The buyer decrypts them and sees the masked, watermarked records.
+4. The merchant agent buys 3 records via x402 on Hedera **on its own, within its budget, with no click to pay**. Each payment is logged to the agent's HCS topic. The buyer decrypts them and sees the masked, watermarked records.
 5. HashScan: payment txs to the treasury, then the payout txs to users.
-6. Revoke a listing and show that a new purchase attempt is refused.
+6. Merchant asks an insight question, pays, and receives an anonymised report; the public `dm.insight_receipt` shows cohort size bucket and privacy parameters, with no contributor list.
+7. Revoke a listing and show that a new purchase attempt is refused.

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System architecture and trust boundaries</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;   /* white-smoke */
+      --color-ink:     #2d3142;   /* jet-black */
+      --color-muted:   #4f5d75;   /* blue-slate */
+      --color-accent:  #eb6c36;   /* atomic-tangerine */
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', Georgia, serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1280px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · Secure paved road</p>
+    <h1>System architecture and trust boundaries</h1>
+
+    <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="system-architecture-title system-architecture-desc">
+      <title id="system-architecture-title">System architecture and trust boundaries</title>
+      <desc id="system-architecture-desc">Architecture of the user-owned data marketplace across four trust boundaries: the user's device masks and encrypts chat data, a 0G TEE extracts facets and writes reports, the platform server holds wrapped keys and releases records or insights to an autonomous merchant agent over x402, and Arkiv and Hedera hold public listings, receipts, payments and payouts.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-both" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto-start-reverse"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ============ ZONES (trust boundaries, dashed) ============ -->
+      <!-- Zone: user device -->
+      <rect x="40" y="40" width="240" height="480" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.30)" stroke-width="1" stroke-dasharray="4,4"/>
+      <rect x="48" y="44" width="180" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="52" y="53" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">USER DEVICE — TRUSTED BY USER</text>
+
+      <!-- Zone: 0G private inference -->
+      <rect x="320" y="40" width="540" height="136" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.30)" stroke-width="1" stroke-dasharray="4,4"/>
+      <rect x="328" y="44" width="164" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="332" y="53" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">0G PRIVATE INFERENCE — TEE</text>
+
+      <!-- Zone: platform server -->
+      <rect x="320" y="224" width="540" height="296" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.30)" stroke-width="1" stroke-dasharray="4,4"/>
+      <rect x="328" y="228" width="380" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="332" y="237" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">PLATFORM SERVER — KEY HOLDER · SEES MASKED TEXT WHEN DECRYPTING</text>
+
+      <!-- Zone: public -->
+      <rect x="900" y="224" width="340" height="296" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.30)" stroke-width="1" stroke-dasharray="4,4"/>
+      <rect x="908" y="228" width="148" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="912" y="237" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">PUBLIC — ANYONE CAN READ</text>
+
+      <!-- ============ ARROWS (drawn before nodes) ============ -->
+      <!-- 1. device → 0G : masked text -->
+      <path d="M 256,100 H 448" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- 2. 0G → device : facets (return) -->
+      <path d="M 448,124 H 256" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <!-- 3. device → server : ciphertext (primary, accent) -->
+      <path d="M 256,304 H 352" fill="none" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+      <!-- 4. device → key store : wrapped key -->
+      <path d="M 256,452 H 352" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- 5. server ↔ 0G : spec / labels (bidirectional) -->
+      <path d="M 672,280 H 736 Q 744,280 744,272 V 152" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-start="url(#arrow-both)" marker-end="url(#arrow-both)"/>
+      <!-- 6. server → Arkiv : write + read -->
+      <path d="M 672,304 H 928" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- 7. server → ledger : credit -->
+      <path d="M 672,328 H 752 Q 760,328 760,336 V 416" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- 8. ledger → Hedera : batch payout (scheduled) -->
+      <path d="M 832,452 H 928" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <!-- 9. merchant → server : ask / buy -->
+      <path d="M 576,560 V 352" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <!-- 10. server → merchant : encrypted out -->
+      <path d="M 616,352 V 560" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <!-- 11. merchant → Hedera : pay + log (x402 settlement + HCS spend log) -->
+      <path d="M 696,588 H 1020 Q 1028,588 1028,580 V 496" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <!-- 12. merchant → Arkiv : browse free -->
+      <path d="M 696,612 H 1168 Q 1176,612 1176,604 V 352" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+
+      <!-- ============ ARROW LABELS (masked, 8px gap) ============ -->
+      <rect x="350" y="80" width="68" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="384" y="89" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">MASKED TEXT</text>
+
+      <rect x="362" y="132" width="44" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="384" y="141" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">FACETS</text>
+
+      <rect x="272" y="284" width="64" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="304" y="293" fill="#eb6c36" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">CIPHERTEXT</text>
+
+      <rect x="270" y="432" width="68" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="304" y="441" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">WRAPPED KEY</text>
+
+      <rect x="752" y="196" width="84" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="794" y="205" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">SPEC · LABELS</text>
+
+      <rect x="772" y="284" width="80" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="812" y="293" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">WRITE + READ</text>
+
+      <rect x="768" y="364" width="44" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="790" y="373" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">CREDIT</text>
+
+      <rect x="840" y="432" width="80" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="880" y="441" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">BATCH PAYOUT</text>
+
+      <rect x="508" y="380" width="60" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="538" y="389" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">ASK / BUY</text>
+
+      <rect x="624" y="380" width="84" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="666" y="389" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">ENCRYPTED OUT</text>
+
+      <rect x="828" y="568" width="64" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="860" y="577" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">PAY + LOG</text>
+
+      <rect x="1096" y="540" width="72" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="1132" y="549" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">BROWSE FREE</text>
+
+      <!-- ============ NODES ============ -->
+      <!-- Node: User device (input / user) -->
+      <rect x="64" y="72" width="192" height="416" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="72" width="192" height="416" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <rect x="72" y="80" width="32" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
+      <text x="88" y="89" fill="#7a8399" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">USER</text>
+      <text x="160" y="116" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">User device</text>
+      <text x="160" y="132" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">browser app</text>
+      <line x1="80" y1="152" x2="240" y2="152" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+      <text x="80" y="184" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">01</text>
+      <text x="100" y="184" fill="#2d3142" font-size="12" font-weight="500" font-family="'Geist', system-ui, sans-serif">Masking</text>
+      <text x="100" y="200" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace">raw → masked text</text>
+      <text x="80" y="248" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">02</text>
+      <text x="100" y="248" fill="#2d3142" font-size="12" font-weight="500" font-family="'Geist', system-ui, sans-serif">Review + consent</text>
+      <text x="100" y="264" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace">consent toggles</text>
+      <text x="80" y="312" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">03</text>
+      <text x="100" y="312" fill="#2d3142" font-size="12" font-weight="500" font-family="'Geist', system-ui, sans-serif">Encrypt</text>
+      <text x="100" y="328" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace">listing key · wrapped</text>
+      <line x1="80" y1="424" x2="240" y2="424" stroke="rgba(45,49,66,0.12)" stroke-width="0.8" stroke-dasharray="4,3"/>
+      <circle cx="84" cy="456" r="6" fill="none" stroke="#4f5d75" stroke-width="1"/>
+      <line x1="80" y1="460" x2="88" y2="452" stroke="#4f5d75" stroke-width="1"/>
+      <text x="96" y="459" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">RAW EXPORT NEVER LEAVES</text>
+
+      <!-- Node: 0G private inference (external) -->
+      <rect x="448" y="72" width="320" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="448" y="72" width="320" height="80" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <rect x="456" y="80" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.22)" stroke-width="0.8"/>
+      <text x="470" y="89" fill="#7a8399" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">TEE</text>
+      <text x="608" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">0G private inference</text>
+      <text x="608" y="120" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">facet extraction · question → analysis spec</text>
+      <text x="608" y="136" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">labelling + themes · report writing</text>
+
+      <!-- Node: Platform server (FOCAL) -->
+      <rect x="352" y="256" width="320" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="352" y="256" width="320" height="96" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="360" y="264" width="32" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="376" y="273" fill="#eb6c36" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">CORE</text>
+      <text x="512" y="288" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Platform server</text>
+      <text x="512" y="304" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">x402 gateway</text>
+      <text x="512" y="320" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">record release · decrypt → watermark → re-encrypt</text>
+      <text x="512" y="336" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">insights pipeline</text>
+
+      <!-- Node: Wrapped key store (store) -->
+      <rect x="352" y="416" width="180" height="72" rx="6" fill="#f5f5f5"/>
+      <rect x="352" y="416" width="180" height="72" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="360" y="424" width="40" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.50)" stroke-width="0.8"/>
+      <text x="380" y="433" fill="#4f5d75" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
+      <text x="442" y="456" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Wrapped key store</text>
+      <text x="442" y="472" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">per-listing keys</text>
+
+      <!-- Node: Earnings ledger (store) -->
+      <rect x="652" y="416" width="180" height="72" rx="6" fill="#f5f5f5"/>
+      <rect x="652" y="416" width="180" height="72" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="660" y="424" width="40" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.50)" stroke-width="0.8"/>
+      <text x="680" y="433" fill="#4f5d75" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
+      <text x="742" y="456" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Earnings ledger</text>
+      <text x="742" y="472" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">80% sales · insight split</text>
+
+      <!-- Node: Arkiv Rabdi (public store) -->
+      <rect x="928" y="256" width="280" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="928" y="256" width="280" height="96" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="936" y="264" width="40" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.50)" stroke-width="0.8"/>
+      <text x="956" y="273" fill="#4f5d75" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">CHAIN</text>
+      <text x="1068" y="296" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Arkiv Rabdi</text>
+      <text x="1068" y="312" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">dm.listing · dm.sale</text>
+      <text x="1068" y="328" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">dm.insight_receipt</text>
+
+      <!-- Node: Hedera testnet (external) -->
+      <rect x="928" y="416" width="200" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="928" y="416" width="200" height="80" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <rect x="936" y="424" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.22)" stroke-width="0.8"/>
+      <text x="956" y="433" fill="#7a8399" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">CHAIN</text>
+      <text x="1028" y="448" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Hedera testnet</text>
+      <text x="1028" y="464" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">x402 settlement</text>
+      <text x="1028" y="476" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">HCS spend log</text>
+      <text x="1028" y="488" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">scheduled payouts</text>
+
+      <!-- Node: Merchant AI agent (actor, outside all zones) -->
+      <rect x="496" y="560" width="200" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="496" y="560" width="200" height="80" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <rect x="504" y="568" width="40" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
+      <text x="524" y="577" fill="#7a8399" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">ACTOR</text>
+      <text x="596" y="600" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Merchant AI agent</text>
+      <text x="596" y="616" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">autonomous · budget-capped</text>
+
+      <!-- ============ LEGEND STRIP ============ -->
+      <line x1="40" y1="652" x2="1240" y2="652" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="40" y="672" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.18em">LEGEND</text>
+
+      <rect x="40" y="684" width="16" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="64" y="693" fill="#4f5d75" font-size="8" font-family="'Geist', system-ui, sans-serif">Focal · platform server</text>
+
+      <rect x="192" y="684" width="16" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="216" y="693" fill="#4f5d75" font-size="8" font-family="'Geist', system-ui, sans-serif">User / actor</text>
+
+      <rect x="300" y="684" width="16" height="12" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="324" y="693" fill="#4f5d75" font-size="8" font-family="'Geist', system-ui, sans-serif">External service</text>
+
+      <rect x="424" y="684" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="448" y="693" fill="#4f5d75" font-size="8" font-family="'Geist', system-ui, sans-serif">Store</text>
+
+      <rect x="496" y="684" width="16" height="12" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.30)" stroke-width="1" stroke-dasharray="4,4"/>
+      <text x="520" y="693" fill="#4f5d75" font-size="8" font-family="'Geist', system-ui, sans-serif">Trust boundary</text>
+
+      <line x1="612" y1="690" x2="640" y2="690" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+      <text x="648" y="693" fill="#4f5d75" font-size="8" font-family="'Geist', system-ui, sans-serif">Ciphertext upload</text>
+
+      <line x1="748" y1="690" x2="776" y2="690" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <text x="784" y="693" fill="#4f5d75" font-size="8" font-family="'Geist', system-ui, sans-serif">Internal call</text>
+
+      <line x1="864" y1="690" x2="892" y2="690" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <text x="900" y="693" fill="#4f5d75" font-size="8" font-family="'Geist', system-ui, sans-serif">Merchant x402 / HTTP</text>
+
+      <line x1="1012" y1="690" x2="1040" y2="690" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <text x="1048" y="693" fill="#4f5d75" font-size="8" font-family="'Geist', system-ui, sans-serif">Return / scheduled</text>
+    </svg>
+  </div>
+</body>
+</html>

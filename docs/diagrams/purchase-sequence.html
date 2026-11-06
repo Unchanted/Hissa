@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Record purchase (pseudonymised) · Sequence</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', Georgia, serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1280px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Sequence · Data marketplace</p>
+    <h1>Record purchase (pseudonymised)</h1>
+
+    <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="purchase-sequence-title purchase-sequence-desc">
+      <title id="purchase-sequence-title">Record purchase (pseudonymised)</title>
+      <desc id="purchase-sequence-desc">Sequence diagram of a merchant agent buying one pseudonymised record: it browses consented listings on Arkiv, pays the x402 gateway in HBAR on Hedera, and the server checks consent, decrypts the record, adds a buyer-scoped pseudonym and watermark, re-encrypts it to the buyer, writes a sale receipt to Arkiv and credits the user 80 percent, so the stored record key never leaves the server.</desc>
+      <defs>
+        <marker id="purchase-sequence-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="purchase-sequence-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="purchase-sequence-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <!-- LIFELINES · x = 176, 520, 864, 1112 -->
+        <line x1="176" y1="96" x2="176" y2="600" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="520" y1="96" x2="520" y2="600" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="864" y1="96" x2="864" y2="600" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="1112" y1="96" x2="1112" y2="600" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+
+        <!-- ACTIVATION BARS -->
+        <rect x="1108" y="144" width="8" height="44" fill="rgba(45,49,66,0.06)" stroke="#4f5d75" stroke-width="0.8"/>
+        <rect x="516" y="228" width="8" height="56" fill="rgba(45,49,66,0.06)" stroke="#4f5d75" stroke-width="0.8"/>
+        <rect x="516" y="348" width="8" height="236" fill="rgba(45,49,66,0.06)" stroke="#4f5d75" stroke-width="0.8"/>
+
+        <!-- MESSAGES (time flows top to bottom) -->
+        <!-- M1 -->
+        <line x1="176" y1="148" x2="1108" y2="148" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow-link)"/>
+        <!-- M2 -->
+        <line x1="1108" y1="184" x2="176" y2="184" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#purchase-sequence-arrow)"/>
+        <!-- M3 -->
+        <line x1="176" y1="232" x2="516" y2="232" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow-link)"/>
+        <!-- M4 -->
+        <line x1="516" y1="280" x2="176" y2="280" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#purchase-sequence-arrow)"/>
+        <!-- M5 -->
+        <line x1="176" y1="316" x2="864" y2="316" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow-link)"/>
+        <!-- M6 -->
+        <line x1="176" y1="352" x2="516" y2="352" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow-link)"/>
+        <!-- M7 self -->
+        <path d="M 524 372 L 552 372 A 8 8 0 0 1 560 380 L 560 388 A 8 8 0 0 1 552 396 L 524 396" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow)"/>
+        <!-- M8 -->
+        <line x1="524" y1="424" x2="1112" y2="424" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow)"/>
+        <!-- M9 self -->
+        <path d="M 524 448 L 552 448 A 8 8 0 0 1 560 456 L 560 472 A 8 8 0 0 1 552 480 L 524 480" fill="none" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#purchase-sequence-arrow-accent)"/>
+        <!-- M10 -->
+        <line x1="524" y1="516" x2="1112" y2="516" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow)"/>
+        <!-- M11 self -->
+        <path d="M 524 536 L 552 536 A 8 8 0 0 1 560 544 L 560 552 A 8 8 0 0 1 552 560 L 524 560" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow)"/>
+        <!-- M12 -->
+        <line x1="516" y1="580" x2="176" y2="580" stroke="#eb6c36" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#purchase-sequence-arrow-accent)"/>
+
+        <!-- MESSAGE LABELS (opaque paper masks, 8px above each stroke) -->
+        <!-- M1 label -->
+        <rect x="208" y="116" width="280" height="24" rx="2" fill="#f5f5f5"/>
+        <text x="348" y="124" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">BROWSE LISTINGS</text>
+        <text x="348" y="136" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.02em">dm.listing · consent_sale = true · domain = …</text>
+        <!-- M2 label -->
+        <rect x="264" y="164" width="168" height="12" rx="2" fill="#f5f5f5"/>
+        <text x="348" y="172" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">KEYS · COARSE TAGS · PRICE</text>
+        <!-- M3 label -->
+        <rect x="288" y="200" width="120" height="24" rx="2" fill="#f5f5f5"/>
+        <text x="348" y="208" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">GET /RECORDS/:KEY</text>
+        <text x="348" y="220" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.02em">+ buyer public key</text>
+        <!-- M4 label -->
+        <rect x="272" y="248" width="152" height="24" rx="2" fill="#f5f5f5"/>
+        <text x="348" y="256" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">402 PAYMENT REQUIRED</text>
+        <text x="348" y="268" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.02em">price · payTo = treasury</text>
+        <!-- M5 label -->
+        <rect x="320" y="296" width="56" height="12" rx="2" fill="#f5f5f5"/>
+        <text x="348" y="304" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">PAY HBAR</text>
+        <!-- M6 label -->
+        <rect x="280" y="332" width="136" height="12" rx="2" fill="#f5f5f5"/>
+        <text x="348" y="340" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">RETRY + PAYMENT PROOF</text>
+        <!-- M7 label -->
+        <rect x="568" y="368" width="192" height="28" rx="2" fill="#f5f5f5"/>
+        <text x="572" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.08em">CHECK LISTING</text>
+        <text x="572" y="392" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.02em">active · consent_sale still on</text>
+        <!-- M8 label -->
+        <rect x="936" y="404" width="104" height="12" rx="2" fill="#f5f5f5"/>
+        <text x="988" y="412" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">READ CIPHERTEXT</text>
+        <!-- M9 label -->
+        <rect x="568" y="444" width="224" height="40" rx="2" fill="#f5f5f5"/>
+        <text x="572" y="456" fill="#eb6c36" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.08em">UNWRAP KEY · DECRYPT</text>
+        <text x="572" y="468" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.02em">+ buyer-scoped pseudonym + watermark</text>
+        <text x="572" y="480" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.02em">re-encrypt to buyer public key</text>
+        <!-- M10 label -->
+        <rect x="924" y="484" width="128" height="24" rx="2" fill="#f5f5f5"/>
+        <text x="988" y="492" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">WRITE SALE RECEIPT</text>
+        <text x="988" y="504" fill="#7a8399" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.02em">createEntity dm.sale</text>
+        <!-- M11 label -->
+        <rect x="568" y="540" width="176" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="572" y="552" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.08em">CREDIT 80% TO USER EARNINGS</text>
+        <!-- M12 label -->
+        <rect x="296" y="560" width="104" height="12" rx="2" fill="#f5f5f5"/>
+        <text x="348" y="568" fill="#eb6c36" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">ENCRYPTED RECORD</text>
+
+        <!-- Editorial callout (neutral ink) pointing at the focal re-encryption step -->
+        <text x="476" y="420" fill="#2d3142" font-size="14" font-style="italic" font-family="'Instrument Serif', Georgia, serif" text-anchor="end">buyer gets a re-encrypted,</text>
+        <text x="476" y="440" fill="#2d3142" font-size="14" font-style="italic" font-family="'Instrument Serif', Georgia, serif" text-anchor="end">watermarked copy — never the record key</text>
+        <path d="M 480 416 Q 512 416 516 460" fill="none" stroke="rgba(45,49,66,0.40)" stroke-width="1" stroke-dasharray="4,3"/>
+        <circle cx="516" cy="460" r="2" fill="#2d3142"/>
+
+        <!-- ACTORS (drawn after arrows and labels) -->
+        <!-- Actor: Merchant agent -->
+        <rect x="96" y="40" width="160" height="56" rx="6" fill="#f5f5f5"/>
+        <rect x="96" y="40" width="160" height="56" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+        <rect x="104" y="48" width="40" height="12" rx="2" fill="none" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
+        <text x="124" y="56" fill="#7a8399" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">AGENT</text>
+        <text x="176" y="76" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Merchant agent</text>
+        <text x="176" y="88" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">buyer · x402 client</text>
+        <!-- Actor: Server -->
+        <rect x="440" y="40" width="160" height="56" rx="6" fill="#f5f5f5"/>
+        <rect x="440" y="40" width="160" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+        <rect x="448" y="48" width="28" height="12" rx="2" fill="none" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+        <text x="462" y="56" fill="#4f5d75" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+        <text x="520" y="76" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Server</text>
+        <text x="520" y="88" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">x402 gateway · key holder</text>
+        <!-- Actor: Hedera -->
+        <rect x="784" y="40" width="160" height="56" rx="6" fill="#f5f5f5"/>
+        <rect x="784" y="40" width="160" height="56" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+        <rect x="792" y="48" width="40" height="12" rx="2" fill="none" stroke="rgba(45,49,66,0.22)" stroke-width="0.8"/>
+        <text x="812" y="56" fill="#7a8399" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">CHAIN</text>
+        <text x="864" y="76" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Hedera</text>
+        <text x="864" y="88" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">HBAR · treasury</text>
+        <!-- Actor: Arkiv -->
+        <rect x="1032" y="40" width="160" height="56" rx="6" fill="#f5f5f5"/>
+        <rect x="1032" y="40" width="160" height="56" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+        <rect x="1040" y="48" width="40" height="12" rx="2" fill="none" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+        <text x="1060" y="56" fill="#4f5d75" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
+        <text x="1112" y="76" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', system-ui, sans-serif" text-anchor="middle">Arkiv</text>
+        <text x="1112" y="88" fill="#4f5d75" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">public entities</text>
+
+        <!-- LEGEND -->
+        <line x1="40" y1="632" x2="1240" y2="632" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+        <text x="96" y="648" fill="#4f5d75" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.18em">LEGEND</text>
+        <rect x="96" y="660" width="4" height="16" fill="rgba(45,49,66,0.06)" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="108" y="672" fill="#4f5d75" font-size="9" font-family="'Geist', system-ui, sans-serif">Activation</text>
+        <line x1="268" y1="668" x2="296" y2="668" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow-link)"/>
+        <text x="304" y="672" fill="#4f5d75" font-size="9" font-family="'Geist', system-ui, sans-serif">Merchant request</text>
+        <line x1="448" y1="668" x2="476" y2="668" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#purchase-sequence-arrow)"/>
+        <text x="484" y="672" fill="#4f5d75" font-size="9" font-family="'Geist', system-ui, sans-serif">Server call / self step</text>
+        <line x1="628" y1="668" x2="656" y2="668" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#purchase-sequence-arrow)"/>
+        <text x="664" y="672" fill="#4f5d75" font-size="9" font-family="'Geist', system-ui, sans-serif">Return</text>
+        <line x1="784" y1="668" x2="812" y2="668" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#purchase-sequence-arrow-accent)"/>
+        <text x="820" y="672" fill="#4f5d75" font-size="9" font-family="'Geist', system-ui, sans-serif">Focal: record key stays on the server</text>
+    </svg>
+  </div>
+</body>
+</html>
