@@ -5,10 +5,10 @@ import { ACCOUNTS, PRICES, SELLER_SHARE, SOURCES } from "../config";
 import { hex, isoWeek, sleep } from "../lib";
 import { Phone } from "../components/Phone";
 import { api, useLive } from "../live";
-import { pendingEarnings, useStore } from "../store";
+import { patchListingState, pendingEarnings, useStore, withListings, type Listing } from "../store";
 import type { SignedUpload } from "../arkiv";
 import { parseChatExport, type ChatData } from "../upload";
-import { maskOnDevice, partsOf, preloadNer, useNerStatus, type MaskResult } from "../ner";
+import { maskExtraNames, maskOnDevice, parseExtraWords, partsOf, preloadNer, useNerStatus, type MaskResult } from "../ner";
 import { DOMAINS, ZG_NOTE, band, teeLabel } from "../zerog";
 import "../ner.css";
 
@@ -78,16 +78,16 @@ function domainOf(domainPath: unknown): string {
 export function Seller() {
   const { state } = useStore();
   const [pendingState, setPendingState] = useState(loadPendingDraft);
-  const [step, setStep] = useState(state.listing ? 3 : pendingState.draft ? 2 : 0);
+  const [step, setStep] = useState(state.listings.length ? 3 : pendingState.draft ? 2 : 0);
   const [chat, setChat] = useState<ChatData | null>(null);
   const [review, setReview] = useState<Review | null>(null);
 
   useEffect(() => {
-    if (state.listing && pendingState.draft?.upload.listing.listing_id === state.listing.listingId) {
+    if (pendingState.draft && state.listings.some((l) => l.listingId === pendingState.draft!.upload.listing.listing_id)) {
       clearPendingDraft();
       setPendingState({ draft: null, error: "" });
     }
-  }, [state.listing, pendingState.draft]);
+  }, [state.listings, pendingState.draft]);
 
   return (
     <div className="page">
@@ -111,7 +111,7 @@ export function Seller() {
         {step === 0 && (pendingState.error ? <p className="muted" role="alert">{pendingState.error}</p> : <Upload onDone={(data) => { setChat(data); setReview(null); setStep(1); }} />)}
         {step === 1 && chat && <Mask chat={chat} onDone={(data) => { setReview(data); setStep(2); }} />}
         {step === 2 && (pendingState.draft ? <Publish initialDraft={pendingState.draft} onDone={() => { setPendingState({ draft: null, error: "" }); setStep(3); }} /> : chat && review ? <Publish chat={chat} review={review} onDone={() => setStep(3)} /> : null)}
-        {step === 3 && <Live onRestart={() => setStep(0)} />}
+        {step === 3 && <Live onRestart={() => { setChat(null); setReview(null); setStep(pendingState.draft ? 2 : 0); }} />}
       </div>
     </div>
   );
@@ -238,6 +238,8 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
   const [zgDone, setZgDone] = useState<{ reqId: string; note: string } | null>(null);
   const [zgNote, setZgNote] = useState("");
   const [simulated, setSimulated] = useState(false);
+  const [extra, setExtra] = useState("");
+  const [extraNote, setExtraNote] = useState("");
   const ran = useRef(false);
 
   // 1 · drop other people's messages; 2 · mask on this device (rules + NER model in a worker).
@@ -288,6 +290,28 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
       .finally(() => setPhase(4));
   }, [phase, zg, chat.sample, maskedText, addReceipt]);
 
+  /** Re-masks extra words the model missed, on this device, before (or again for) classification. */
+  function applyExtra() {
+    const words = parseExtraWords(extra);
+    if (!mask || !words.length) return;
+    const r = maskExtraNames(maskedText, words);
+    if (!r.spans.length) return setExtraNote("None of those words appear in the masked text.");
+    setMask({ ...mask, spans: [...mask.spans, ...r.spans] });
+    setMaskedText(r.masked);
+    setReviewed(false);
+    setExtra("");
+    setExtraNote(`Hid ${new Set(r.spans.map((x) => x.ph)).size} more name(s).`);
+    if (phase >= 4) {
+      // Classification already ran on the old text: run it again on the new masked text.
+      ran.current = false;
+      setFacets({});
+      setZgDone(null);
+      setZgNote("");
+      setSimulated(false);
+      setPhase(3);
+    }
+  }
+
   const spans = mask?.spans ?? [];
   const order = new Map(spans.map((s, i) => [s.ph, i]));
   const chips = facetChips(facets);
@@ -301,7 +325,7 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
         aside={
           <span className="row gap-s">
             <NerBadge />
-            {phase >= 2 && <Chip tone="gold">{spans.length} identifiers hidden</Chip>}
+            {phase >= 2 && <Chip tone="gold">{new Set(spans.map((x) => x.ph)).size} identifiers hidden</Chip>}
           </span>
         }
       >
@@ -351,6 +375,25 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
             Review masked text (this is all that leaves your device)
             <textarea value={maskedText} onChange={(event) => setMaskedText(event.target.value)} rows={5} disabled={phase === 3} />
           </label>
+        )}
+        {phase >= 2 && (
+          <div className="row gap-s wrap ner-extra">
+            <label className="muted">
+              Other names or words to hide (comma-separated)
+              <input
+                type="text"
+                value={extra}
+                placeholder="e.g. swapnil, anand"
+                disabled={phase === 3}
+                onChange={(e) => setExtra(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && applyExtra()}
+              />
+            </label>
+            <Button onClick={applyExtra} disabled={phase === 3 || !parseExtraWords(extra).length}>
+              Apply
+            </Button>
+            {extraNote && <small className="muted">{extraNote}</small>}
+          </div>
         )}
         <p className="muted ner-note" role="note">
           Names and places are masked by a model running in your browser; emails, phones and IDs by rules. Brands are kept. Review before publishing.
@@ -474,9 +517,9 @@ function Publish({ chat, review, initialDraft, onDone }: { chat?: ChatData; revi
       const result = await api.registerListing(upload);
       log.push(<>live ✓ <Hash value={result.txHash} /></>, "arkiv");
       clearPendingDraft();
-      update((s) => ({
-        ...s,
-        listing: {
+      update((s) => withListings(s, [
+        ...s.listings.filter((x) => x.listingId !== result.listingId),
+        {
           listingId: result.listingId,
           entityKey: result.entityKey,
           txHash: result.txHash,
@@ -487,8 +530,10 @@ function Publish({ chat, review, initialDraft, onDone }: { chat?: ChatData; revi
           expiryDays: currentDraft.expiryDays,
           publishedAt: Date.now(),
           live: true,
+          domain: currentDraft.domain,
+          region: currentDraft.region,
         },
-      }));
+      ]));
       addReceipt({ kind: "listing", title: `${currentDraft.domain} · ${currentDraft.region} · silver`, chain: "arkiv", tx: result.txHash, arkivEntityKey: result.entityKey });
       await sleep(350);
       onDone();
@@ -587,58 +632,13 @@ function Publish({ chat, review, initialDraft, onDone }: { chat?: ChatData; revi
 
 /* ------------------------------ Live listing ------------------------------ */
 
+
 function Live({ onRestart }: { onRestart: () => void }) {
   const { state, update, addReceipt } = useStore();
-  const storedListing = state.listing;
   const [pending, setPending] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ txId: string; href?: string; error?: string } | null>(null);
-  const [actionError, setActionError] = useState("");
   const { live, balances, refresh } = useLive();
-  if (!storedListing) return null;
-  const l = storedListing;
-  const listingId = l.listingId;
-
-  async function recoverListing(message: string) {
-    try {
-      const current = await api.listing(listingId);
-      update((s) => s.listing ? { ...s, listing: { ...s.listing, entityKey: current.entityKey, consentSale: current.consentSale, consentContact: current.consentContact, version: current.version, expiresAt: current.expiresAt } } : s);
-      return `${message} Current listing state was refreshed; retry the action if needed.`;
-    } catch {
-      return message;
-    }
-  }
-
-  async function patch(field: "consentSale" | "consentContact", v: boolean) {
-    setPending(field);
-    setActionError("");
-    try {
-      if (!live) throw new Error("Arkiv API is unavailable; consent was not changed.");
-      const result = await api.patchListing(listingId, { [field]: v }, l.version);
-      update((s) => (s.listing ? { ...s, listing: { ...s.listing, [field]: v, version: result.version, txHash: result.txHash } } : s));
-      addReceipt({ kind: "consent", title: `${field === "consentSale" ? "consent_sale" : "consent_contact"} → ${v}`, chain: "arkiv", tx: result.txHash, arkivEntityKey: l.entityKey });
-      refresh();
-    } catch (cause) {
-      setActionError(await recoverListing((cause as Error).message));
-    } finally {
-      setPending(null);
-    }
-  }
-
-  async function revoke() {
-    setPending("revoke");
-    setActionError("");
-    try {
-      if (!live) throw new Error("Arkiv API is unavailable; the listing was not revoked.");
-      const result = await api.revokeListing(listingId, l.version);
-      update((s) => (s.listing ? { ...s, listing: { ...s.listing, live: false, txHash: result.txHash } } : s));
-      addReceipt({ kind: "revoke", title: "listing revoked", chain: "arkiv", tx: result.txHash, arkivEntityKey: l.entityKey });
-      refresh();
-    } catch (cause) {
-      setActionError(await recoverListing((cause as Error).message));
-    } finally {
-      setPending(null);
-    }
-  }
+  if (!state.listings.length) return null;
 
   async function payout() {
     setPending("payout");
@@ -658,9 +658,103 @@ function Live({ onRestart }: { onRestart: () => void }) {
   }
 
   const due = live ? balances?.owedToSeller ?? 0 : 0;
+  // Newest first.
+  const listings = [...state.listings].reverse();
 
   return (
     <div className="live-grid">
+      <div className="stack">
+        <div className="row end">
+          <Button onClick={onRestart}>Upload more data</Button>
+        </div>
+        {listings.map((l) => (
+          <ListingCard key={l.listingId} l={l} busy={pending === "payout"} />
+        ))}
+        <Panel label="YOUR HISSA">
+          <div className="earn">
+            <small>YOUR HISSA</small>
+            <b>
+              <CountUp value={state.earnings.sales + state.earnings.contacts} decimals={2} /> <span>ℏ earned</span>
+            </b>
+            <span className="earn-sub">
+              {due > 0 ? (
+                <button className="link-btn" onClick={() => void payout()} disabled={!!pending}>
+                  {pending === "payout" ? "Paying out on Hedera…" : `Pay out ${due.toFixed(2)} ℏ`}
+                </button>
+              ) : paid?.error ? (
+                <span className="muted">{paid.error}</span>
+              ) : paid ? (
+                <span className="muted">
+                  Paid out ✓ <Hash value={paid.txId} head={12} tail={4} href={paid.href} />
+                </span>
+              ) : state.earnings.paid > 0 ? (
+                <span className="muted">Paid out ✓</span>
+              ) : live && !balances ? (
+                <span className="muted">Checking authoritative seller balance…</span>
+              ) : (
+                <span className="muted">80% of every sale · paid messages</span>
+              )}
+            </span>
+          </div>
+        </Panel>
+      </div>
+      <Phone />
+    </div>
+  );
+}
+
+/** One listing: its own version, control key (server side), consent toggles and revoke. */
+function ListingCard({ l, busy }: { l: Listing; busy: boolean }) {
+  const { update, addReceipt } = useStore();
+  const [pending, setPending] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
+  const { live, refresh } = useLive();
+  const listingId = l.listingId;
+
+  async function recoverListing(message: string) {
+    try {
+      const current = await api.listing(listingId);
+      update((s) => patchListingState(s, listingId, { entityKey: current.entityKey, consentSale: current.consentSale, consentContact: current.consentContact, version: current.version, expiresAt: current.expiresAt }));
+      return `${message} Current listing state was refreshed; retry the action if needed.`;
+    } catch {
+      return message;
+    }
+  }
+
+  async function patch(field: "consentSale" | "consentContact", v: boolean) {
+    setPending(field);
+    setActionError("");
+    try {
+      if (!live) throw new Error("Arkiv API is unavailable; consent was not changed.");
+      const result = await api.patchListing(listingId, { [field]: v }, l.version);
+      update((s) => patchListingState(s, listingId, { [field]: v, version: result.version, txHash: result.txHash }));
+      addReceipt({ kind: "consent", title: `${field === "consentSale" ? "consent_sale" : "consent_contact"} → ${v}`, chain: "arkiv", tx: result.txHash, arkivEntityKey: l.entityKey });
+      refresh();
+    } catch (cause) {
+      setActionError(await recoverListing((cause as Error).message));
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function revoke() {
+    setPending("revoke");
+    setActionError("");
+    try {
+      if (!live) throw new Error("Arkiv API is unavailable; the listing was not revoked.");
+      const result = await api.revokeListing(listingId, l.version);
+      update((s) => patchListingState(s, listingId, { live: false, txHash: result.txHash }));
+      addReceipt({ kind: "revoke", title: "listing revoked", chain: "arkiv", tx: result.txHash, arkivEntityKey: l.entityKey });
+      refresh();
+    } catch (cause) {
+      setActionError(await recoverListing((cause as Error).message));
+    } finally {
+      setPending(null);
+    }
+  }
+
+  const off = !!pending || busy;
+  return (
     <Panel
       label={l.live ? "LIVE ON ARKIV" : "REVOKED"}
       className={`listing-card${l.live ? " live" : " dead"}`}
@@ -671,69 +765,38 @@ function Live({ onRestart }: { onRestart: () => void }) {
         </span>
       }
     >
+      <div className="tags">
+        <span className="tag"><small>id</small>{l.listingId}</span>
+        {l.domain && <span className="tag"><small>domain</small>{l.domain}</span>}
+        {l.region && <span className="tag"><small>region</small>{l.region}</span>}
+        <span className="tag"><small>version</small>{l.version}</span>
+      </div>
       <div className="consent">
         <Toggle
           on={l.consentSale}
-          disabled={!l.live || !!pending}
+          disabled={!l.live || off}
           onChange={(v) => void patch("consentSale", v)}
           label="Sell my record"
           hint={pending === "consentSale" ? "Updating on Arkiv…" : "Checked before every sale"}
         />
         <Toggle
           on={l.consentContact}
-          disabled={!l.live || !!pending}
+          disabled={!l.live || off}
           onChange={(v) => void patch("consentContact", v)}
           label="Let buyers message me"
           hint={pending === "consentContact" ? "Updating on Arkiv…" : "Telegram · handle stays hidden"}
         />
       </div>
       {actionError && <p className="muted" role="alert">{actionError}</p>}
-      <div className="listing-foot">
-        <div className="earn">
-          <small>YOUR HISSA</small>
-          <b>
-            <CountUp value={state.earnings.sales + state.earnings.contacts} decimals={2} /> <span>ℏ earned</span>
-          </b>
-          <span className="earn-sub">
-            {due > 0 ? (
-              <button className="link-btn" onClick={() => void payout()} disabled={!!pending}>
-                {pending === "payout" ? "Paying out on Hedera…" : `Pay out ${due.toFixed(2)} ℏ`}
-              </button>
-            ) : paid?.error ? (
-              <span className="muted">{paid.error}</span>
-            ) : paid ? (
-              <span className="muted">
-                Paid out ✓ <Hash value={paid.txId} head={12} tail={4} href={paid.href} />
-              </span>
-            ) : state.earnings.paid > 0 ? (
-              <span className="muted">Paid out ✓</span>
-            ) : live && !balances ? (
-              <span className="muted">Checking authoritative seller balance…</span>
-            ) : (
-              <span className="muted">80% of every sale · paid messages</span>
-            )}
-          </span>
-        </div>
-        <div className="row gap-s wrap">
-          {l.live ? (
-            <Button variant="danger" onClick={() => void revoke()} disabled={!!pending}>
-              Revoke
+      {l.live && (
+        <div className="listing-foot">
+          <div className="row gap-s wrap">
+            <Button variant="danger" onClick={() => void revoke()} disabled={off}>
+              {pending === "revoke" ? "Revoking…" : "Revoke"}
             </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                update((s) => ({ ...s, listing: null }));
-                onRestart();
-              }}
-            >
-              Upload another
-            </Button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </Panel>
-    <Phone />
-    </div>
   );
 }

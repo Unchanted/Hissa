@@ -230,7 +230,8 @@ export function makeArkivAppStore(publisher: Publisher, serviceKey: string, sell
             if (!object(value) || value.listing_id !== preview.listing_id) continue;
             const text = spread(fullText(value), 1200);
             const excerpts = text ? [text] : [];
-            if (excerpts.length) items.push({ user_ref: `seller:${hash(found.seller.ctl_public_key).slice(0, 16)}`, excerpts });
+            // One vote per person: every listing from the same payout account counts as one seller.
+            if (excerpts.length) items.push({ user_ref: `seller:${hash(found.seller.payout_account).slice(0, 16)}`, excerpts });
           } catch { /* unreadable record: leave it out */ }
         }
         if (!page.next) break;

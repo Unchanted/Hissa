@@ -31,7 +31,7 @@ const clean = (v: string) => v.replace(PLACEHOLDER, "").replace(/\s{2,}/g, " ").
 export async function analyseUpload(maskedText: string): Promise<UploadAnalysis> {
   if (!maskedText.trim()) throw new ZeroGError("Nothing to analyse", 400, "empty_input");
   if (maskedText.length > 60_000) throw new ZeroGError("Text too long for one call (max 60,000 characters)", 413, "too_long");
-  const { data, receipt } = await sealedJson(SYSTEM, maskedText, { maxTokens: 1500 });
+  const { data, receipt } = await sealedJson(SYSTEM, maskedText, { maxTokens: 1500, accept: (d) => !!(d as { facets?: unknown })?.facets && typeof (d as { facets: unknown }).facets === "object" });
   const f = (((data ?? {}) as { facets?: unknown }).facets ?? {}) as Record<string, unknown>;
 
   const rawPath = typeof f["domain_path"] === "string" ? clean(f["domain_path"]).toLowerCase() : "";

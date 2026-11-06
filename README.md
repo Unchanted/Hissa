@@ -28,6 +28,25 @@ Hissa is a user-owned data marketplace that connects the two sides.
 - [Arkiv SDK and security research](docs/arkiv-research-2026-11-06.md)
 - [Live test findings, transaction links and remaining checks](docs/arkiv-test-findings-2026-11-06.md)
 
+## 0G Private Computer: classification and analytics in a TEE (working, mainnet Router)
+
+Masking happens only on the seller's device: Transformers.js runs `Xenova/bert-base-NER` in the browser, rules catch emails, phone numbers and IDs, and the seller can add names the model missed. 0G never masks anything. It does three jobs, every call in private mode (`X-0G-Provider-Trust-Mode: private`, TeeML providers only, no fallback to a non-TEE tier):
+
+| Job | Where | Model order |
+| --- | --- | --- |
+| Classify the masked chat into facets (domain, age band, budget, products, events, reasons). The domain becomes the public Arkiv tag; everything else stays inside the ciphertext | Seller upload, `POST /api/ai/analyse-upload` | glm-5.3, then 0gm |
+| Turn a buyer's request or idea into filters (and, for an idea, one measurable question) | Both buyer products, `POST /api/ai/parse-request` | glm-5.3, then 0gm |
+| Anonymised insight report: label each consenting record → group into themes → one vote per seller → Laplace noise (ε = 1) → merge small themes → report and verdict. Refused below 50 people, before any payment | *Validate an idea*, `POST /api/insights/:id` (x402, 2 ℏ) | label and group: 0gm, then glm-5.3; report: glm-5.3, then 0gm |
+
+Every answer is checked against a fixed shape and fixed value lists; a wrong shape is retried, then the next private model is tried. Each call returns a receipt (request ID, provider, model, `X-0G-E2EE: sealed`, cost in micro-USD), shown on the page and on the Public Ledger. Long chats are sampled for 0G (12,000 characters spread across the chat), so compute stays small while the full masked text is stored encrypted on Arkiv.
+
+Evidence: `evidence/0g-compare-glm-5.3.json` and `evidence/0g-compare-0gm-1.0-35b-a3b.json` hold one live run of every job on each model (private mode, synthetic text). In that run glm-5.3 classified uploads better, and 0gm handled the bulk insight labelling reliably at about 15× lower cost. A live insight report took 24 s and about $0.0026.
+
+```bash
+npx tsx packages/ai/scripts/compare-models.ts   # needs ZG_API_KEY in .env
+ZG_CHAT_MODELS=0gm-1.0-35b-a3b npm run demo:api # cheap rehearsals on one model
+```
+
 ## Hedera: x402 payments by an autonomous agent (working, testnet)
 
 A merchant AI agent discovers listings, then buys records and insight reports over

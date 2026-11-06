@@ -31,9 +31,9 @@ type Card = MarketRecord & { state: CardState; paymentTx?: string; href?: string
 function marketFor(s: State): MarketRecord[] {
   const week = isoWeek();
   const others = OTHER_RECORDS.map((r, i) => ({ ...r, key: `0x${(i + 7).toString(16).repeat(64)}`, week }));
-  const l = s.listing;
-  if (!l || !l.live || !l.consentSale) return others;
-  return [{ ...PRIYA_RECORD, listingId: l.listingId, key: l.entityKey, week, contactOk: l.consentContact }, ...others];
+  const mine = s.listings.filter((l) => l.live && l.consentSale);
+  if (!mine.length) return others;
+  return [...mine.map((l) => ({ ...PRIYA_RECORD, listingId: l.listingId, key: l.entityKey, week, contactOk: l.consentContact })), ...others];
 }
 
 const FILTER_LABEL: Record<keyof Filters, string> = { domain: "domain", age: "age", region: "region", event: "behaviour" };
@@ -75,7 +75,7 @@ export function Agent() {
       try {
         const r = await api.parseRequest(q, "records");
         f = { domain: r.filters.domain, age: r.filters.age && band(r.filters.age), region: r.filters.region, event: r.filters.event };
-        setFilters({ f, req: r.receipt.request_id, tee: r.receipt.tee_verified === true });
+        setFilters({ f, req: r.receipt.request_id, tee: r.receipt.tee_verified === true || r.receipt.e2ee === "sealed" });
         addReceipt({ kind: "inference", title: `request → filters · ${teeLabel(r.receipt)}`, chain: "0g", tx: r.receipt.request_id });
         p(`filters ready · ${teeLabel(r.receipt)} · ${r.receipt.latency_ms} ms`, "og");
       } catch (cause) {
@@ -220,8 +220,8 @@ export function Agent() {
           continue;
         }
       } else {
-        const l = state.listing;
-        if (!l || l.listingId !== c.listingId || !l.live || !l.consentContact) {
+        const l = state.listings.find((x) => x.listingId === c.listingId);
+        if (!l || !l.live || !l.consentContact) {
           p(`← 403 · ${l && !l.live ? "listing revoked" : "consent_contact=false"} · not charged`, "err");
           continue;
         }
@@ -321,7 +321,7 @@ export function Agent() {
                 </span>
               ))}
             {filters.req ? <Hash value={filters.req} label="req" note={ZG_NOTE} /> : <Chip>keyword fallback · not 0G</Chip>}
-            {filters.tee && <Chip tone="ok">TEE ✓</Chip>}
+            {filters.tee && <Chip tone="ok">sealed in TEE ✓</Chip>}
             <small className="muted">Arkiv filters on domain{filters.f.region ? " and region" : ""}</small>
           </div>
         )}

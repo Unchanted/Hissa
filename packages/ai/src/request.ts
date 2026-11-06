@@ -35,7 +35,7 @@ export async function parseBuyerRequest(text: string, mode: BuyerMode = "records
   const request = text.trim();
   if (!request) throw new ZeroGError("Nothing to parse", 400, "empty_input");
   if (request.length > 500) throw new ZeroGError("Request too long (max 500 characters)", 413, "too_long");
-  const { data, receipt } = await sealedJson(system(mode), request, { maxTokens: 300 });
+  const { data, receipt } = await sealedJson(system(mode), request, { maxTokens: 300, accept: (d) => typeof (d as { domain?: unknown })?.domain === "string" });
   const out = (data ?? {}) as Record<string, unknown>;
   const age = pick(AGE_BANDS, typeof out["age"] === "string" ? out["age"].replace(/[–—]/g, "-") : undefined);
   const region = pick(REGIONS, out["region"]);
