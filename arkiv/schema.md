@@ -42,6 +42,6 @@ These four named schemas follow [work-plan §3.2](../docs/work-plan.md) and [arc
 - The three listing `bytes` columns and the sealed receipt/payout columns are unindexed. Arkiv `bytes` values remain publicly readable; “sealed” describes application encryption, not Arkiv access control.
 - The SDK adds the indexed `arkiv.schema` tag automatically. The application column sets above do not declare it themselves.
 
-Schema definitions live in [`packages/arkiv/src/schemas.ts`](../packages/arkiv/src/schemas.ts). No expiry, create flags, validation of application payloads, reads or writes are implemented in this foundation slice.
+Schema definitions live in [`packages/arkiv/src/schemas.ts`](../packages/arkiv/src/schemas.ts). The reader checks trusted creator/owner and creation flags: mutable listings and readonly receipts, both with permissionless extension disabled. Listing previews omit ciphertext and sealed blobs. Internal receipt reads retain sealed blobs for future earnings derivation; a public receipts route must project them out. Creation, application payload validation and transaction writes are outside this PR.
 
 Sources: [Arkiv schema guide](https://docs.arkiv.network/schemas/define/), [SDK 1.0.1 schema implementation](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/schema/schema.ts), [SDK 1.0.1 type definitions](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/schema/types.ts), [SDK 1.0.1 value constructors](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/schema/values.ts).

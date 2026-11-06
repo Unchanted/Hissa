@@ -76,7 +76,7 @@ export interface Payouts {
 
 ### 3.2 Arkiv entities
 
-From [architecture.md §2.1–2.3](architecture.md), using the schema already tested live:
+From [architecture.md §2.1–2.3](architecture.md). The earlier synthetic live probe informed the listing model; the new sealed fields and receipt schemas still need funded integration verification:
 
 - `dm.listing`: indexed `listing_id`, `domain`, `region`, `source`, `week`, `quality_tier`, `consent_insights`, `consent_sale`, `price`; unindexed `envelope_format`; bytes `ciphertext`, `wrapped_key`, `sealed_seller`.
 - `dm.sale`: `listing` (key), `buyer_ref`, `payment_tx`, `price`.
@@ -159,7 +159,7 @@ The SDK skills refine implementation details; lane ownership and the product dec
 
 ### Invariants and cross-lane decisions
 
-- **Fresh reads and provenance (B):** configure the platform creator independently; scope queries to creator and owner. Listings must be mutable for consent patches, with permissionless extension disabled. The deployment must exclusively hold the writer and never transfer listings. Creator plus current owner cannot prove content provenance after a transfer away and back; such transfers invalidate this trust policy. Treat only the SDK's explicit missing-entity result as absence; RPC/schema failures remain failures. Check fresh block expiry and consent at use, with the sealed wall-clock deadline enforced by A's release/analysis code.
+- **Fresh reads and provenance (B):** configure the platform creator independently; scope queries to creator and owner. Listings must be mutable for consent patches, with permissionless extension disabled; create receipts readonly with permissionless extension disabled. The deployment must exclusively hold the writer and never transfer listings. Creator plus current owner cannot prove content provenance after a transfer away and back; such transfers invalidate this trust policy. Treat only the SDK's explicit missing-entity result as absence; RPC/schema failures remain failures. Check fresh block expiry and consent at use, with the sealed wall-clock deadline enforced by A's release/analysis code.
 - **Paging (B):** order by `$key`, continue with a typed greater-than key predicate, use strict schema mismatch handling, validate cursors, and cap each page at 100. Multi-page results observe changing current state, not a historical snapshot; callers must bound complete scans and reject incomplete traversal.
 - **Receipt retention (B, agree with A/C):** Arkiv has no permanent entities. Even receipts expire within roughly 182 days without authorized extension. Choose receipt retention/renewal and expired-listing earnings behavior before claiming durable earnings or replay protection. Replay protection must also enforce the payment validity window rather than relying indefinitely on expiring receipts.
 - **Payment concurrency (A/C with B's storage support):** `paymentUsed` followed by a separate receipt write is not atomic. A/C must agree how a payment is bound to one request and claimed before delivery across record and insight flows, including concurrent calls, failed delivery and restarts. Serializing Arkiv writes alone does not solve this. B does not implement another lane's release or settlement logic.
