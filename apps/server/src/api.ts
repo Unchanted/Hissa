@@ -19,6 +19,9 @@
  *   POST   /agent/contact                agent pays to message a seller
  *   POST   /api/payouts                  treasury pays the seller what they are owed
  *   GET    /api/receipts                 settled payments and payouts
+ *   GET    /api/ai/status                0G key configured? (never returns the key)
+ *   POST   /api/ai/analyse-upload        0G Private Computer: masked text → facets + receipt
+ *   POST   /api/ai/insight-demo          0G Private Computer: anonymised cohort report + receipts
  */
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -36,6 +39,8 @@ import {
 import { createPaywall } from "../../../packages/pay/src/paywall.js";
 import { AgentPayer } from "../../../packages/pay/src/payer.js";
 import { logPaymentToHcs, type AgentPaymentLog } from "../../../packages/pay/src/hcs.js";
+import { aiRoutes } from "../../../packages/ai/src/routes.js";
+import { CHAT_MODELS, ROUTER_URL } from "../../../packages/ai/src/zerog.js";
 
 const treasuryId = requireEnv("HEDERA_TREASURY_ID");
 const treasuryKey = parseEcdsaKey(requireEnv("HEDERA_TREASURY_KEY"));
@@ -146,6 +151,12 @@ app.delete("/api/listings/:id", (c) => {
 });
 
 app.get("/api/receipts", (c) => c.json({ items: receipts }));
+
+// 0G Private Computer (packages/ai, lane C): sealed TEE inference with request IDs.
+app.get("/api/ai/status", (c) =>
+  c.json({ router: ROUTER_URL, keyConfigured: Boolean(process.env["ZG_API_KEY"]?.trim()), chatModels: CHAT_MODELS }),
+);
+app.route("/api/ai", aiRoutes());
 
 // Refuse before asking for money.
 app.use("/api/records/:id", async (c, next) => {

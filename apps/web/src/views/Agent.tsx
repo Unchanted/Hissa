@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Button, Chip, Console, CountUp, Hash, PageHead, Panel, SponsorTag, useLog } from "../components/ui";
-import { CONTACT_MESSAGE, OTHER_RECORDS, PRIYA_RECORD, REQUEST_EXAMPLES, matches, parseRequest, type Filters, type MarketRecord } from "../demo-data";
+import { CONTACT_MESSAGE, SIM_THEMES, OTHER_RECORDS, PRIYA_RECORD, REQUEST_EXAMPLES, matches, parseRequest, type Filters, type MarketRecord } from "../demo-data";
 import { ACCOUNTS, AGENT_DEFAULTS, PRICES, SELLER_SHARE } from "../config";
 import { evmHash, hbar, hederaTxId, isoWeek, ogRequestId, sleep } from "../lib";
 import { useStore, type State } from "../store";
 import { ApiError, api, useLive } from "../live";
+import { TxModal, type RunTx } from "../components/TxModal";
 
 type CardState = "locked" | "buying" | "owned";
+type Analysis = { themes: { name: string; share_pct: number }[]; bucket: string; reqIds: string[]; tee: boolean; simulated: boolean };
 type Card = MarketRecord & { state: CardState; paymentTx?: string; href?: string };
 
 function marketFor(s: State): MarketRecord[] {
@@ -28,7 +30,13 @@ export function Agent() {
   const [busy, setBusy] = useState(false);
   const [cards, setCards] = useState<Card[]>(() => state.bought.map((b) => ({ ...b, state: "owned" as const })));
   const log = useLog();
-  const { live, refresh } = useLive();
+  const { live, zg, refresh } = useLive();
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [showTx, setShowTx] = useState(false);
+  const txs: RunTx[] = [
+    ...state.bought.map((b) => ({ label: `Record ${b.listingId}`, txId: b.paymentTx, href: b.href, amount: PRICES.record })),
+    ...(state.contact ? [{ label: `Telegram message → ${state.contact.listingId}`, txId: state.contact.paymentTx, href: state.contact.href, amount: PRICES.contact }] : []),
+  ];
   const left = budget - state.spent;
 
   const owned = cards.filter((c) => c.state === "owned");
@@ -116,9 +124,43 @@ export function Agent() {
       addReceipt({ kind: "sale", title: `${r.listingId} · silver`, chain: "hedera", tx, amount: PRICES.record, href });
       await sleep(300);
     }
-    p(`done · spent ${hbar(spent - state.spent)} ℏ · logged to HCS ${ACCOUNTS.hcsTopic}`, "ok");
     if (live) refresh();
+
+    // 04 · private analysis inside a 0G TEE (anonymised: k ≥ 50, noised, no quotes)
+    if (state.bought.length + toBuy.length > 0 && log.alive.current) {
+      p("0g · private analysis in TEE · consented cohort, k ≥ 50, noised", "og");
+      let a: Analysis | null = null;
+      if (zg) {
+        try {
+          const r = await api.insight();
+          if (r.status === "ok")
+            a = { themes: r.themes, bucket: r.cohort_bucket, reqIds: r.receipts.map((x) => x.request_id), tee: r.receipts.every((x) => x.tee_verified !== false), simulated: false };
+          else p(`refused · ${r.reason}`, "warn");
+        } catch (e) {
+          p(`0G unavailable · ${(e as Error).message} · simulated`, "warn");
+        }
+      }
+      if (!a) {
+        await sleep(1600);
+        a = { themes: SIM_THEMES, bucket: "50–99", reqIds: [ogRequestId(), ogRequestId(), ogRequestId()], tee: false, simulated: true };
+      }
+      setAnalysis(a);
+      p(`report ready · ${a.reqIds.length} sealed 0G calls`, "og");
+    }
+    p(`done · spent ${hbar(spent - state.spent)} ℏ · logged to HCS ${ACCOUNTS.hcsTopic}`, "ok");
     setBusy(false);
+  }
+
+  function download() {
+    const lines = state.bought.map((b) =>
+      JSON.stringify({ listing_id: b.listingId, source: b.source, region: b.region, week: b.week, signals: b.signals, events: b.events, text: b.excerpt, payment_tx: b.paymentTx }),
+    );
+    const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "application/jsonl" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hissa-records-${isoWeek()}.jsonl`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function send() {
@@ -183,6 +225,7 @@ export function Agent() {
 
   return (
     <div className="page">
+      {showTx && <TxModal txs={txs} onClose={() => setShowTx(false)} />}
       <PageHead
         eyebrow="// BUYER — AI COMPANY"
         title={
@@ -233,7 +276,21 @@ export function Agent() {
       </Panel>
 
       <div className="buyer-grid">
-        <Console title={`agent · ${ACCOUNTS.agent} · pays with x402`} lines={log.lines} busy={busy} height={230} />
+        <div className="stack">
+          <Console title={`agent · ${ACCOUNTS.agent} · pays with x402`} lines={log.lines} busy={busy} height={230} />
+          {txs.length > 0 && !busy && (
+            <button className="tx-cta appear" onClick={() => setShowTx(true)}>
+              <span className="tx-cta-icon">ℏ</span>
+              <span>
+                <b>View x402 transactions on HashScan</b>
+                <small>
+                  {txs.length} payment{txs.length === 1 ? "" : "s"} · {txs.reduce((a, t) => a + t.amount, 0)} ℏ · settled on Hedera testnet
+                </small>
+              </span>
+              <span className="tx-cta-go">↗</span>
+            </button>
+          )}
+        </div>
         <Panel label="REACH SELLERS · TELEGRAM" aside={<SponsorTag who="HEDERA" />}>
           {!owned.length ? (
             <p className="muted">Buy records first. Sellers who opted in can be messaged — you never see who they are.</p>
@@ -265,6 +322,50 @@ export function Agent() {
         ))}
         {!cards.length && <p className="muted empty">Matching listings from Arkiv appear here.</p>}
       </div>
+
+      {(analysis || state.bought.length > 0) && (
+        <div className="delivered-grid appear">
+          <Panel label="PRIVATE ANALYSIS" aside={<SponsorTag who="0G" />}>
+            {analysis ? (
+              <>
+                <div className="row gap-s wrap">
+                  <Chip tone="gold">cohort {analysis.bucket}</Chip>
+                  <Chip>k ≥ 50 · noised</Chip>
+                  {analysis.tee && <Chip tone="ok">TEE</Chip>}
+                  {analysis.simulated && <Chip>simulated</Chip>}
+                </div>
+                <div className="themes-mini">
+                  {analysis.themes.slice(0, 4).map((t, i) => (
+                    <div key={t.name} style={{ ["--i" as string]: i }}>
+                      <span>{t.name}</span>
+                      <b className="mono">{Math.round(t.share_pct)}%</b>
+                      <i style={{ ["--w" as string]: `${Math.min(100, t.share_pct * 2)}%` }} />
+                    </div>
+                  ))}
+                </div>
+                <div className="row gap-s wrap">
+                  {analysis.reqIds.slice(0, 2).map((id) => (
+                    <Hash key={id} value={id} head={10} tail={4} label="req" />
+                  ))}
+                  {analysis.reqIds.length > 2 && <small className="muted mono">+{analysis.reqIds.length - 2} more</small>}
+                </div>
+              </>
+            ) : (
+              <p className="muted">Runs after the agent buys.</p>
+            )}
+          </Panel>
+          <Panel label="DELIVERED">
+            <div className="delivered-box">
+              <b>{state.bought.length}</b>
+              <span>decrypted records for AI training</span>
+              <small className="muted">Masked · watermarked to you · paid on Hedera</small>
+              <Button onClick={download} disabled={!state.bought.length}>
+                Download .jsonl
+              </Button>
+            </div>
+          </Panel>
+        </div>
+      )}
     </div>
   );
 }

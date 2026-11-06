@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Chip, Console, CountUp, Hash, PageHead, Panel, Scramble, SponsorTag, Toggle, useLog, useOnce } from "../components/ui";
 import { SAMPLE_EXPORT, type Pii } from "../demo-data";
 import { ACCOUNTS, PRICES, SELLER_SHARE, SOURCES } from "../config";
@@ -108,7 +108,11 @@ function Upload({ onDone }: { onDone: () => void }) {
 function Mask({ onDone }: { onDone: () => void }) {
   const msgs = SAMPLE_EXPORT.messages;
   const [phase, setPhase] = useState(0); // 1 drop context · 2 mask · 3 0G · 4 done
-  const [reqId] = useState(ogRequestId);
+  const [reqId, setReqId] = useState(ogRequestId);
+  const [chips, setChips] = useState<string[]>(FACET_CHIPS);
+  const [zgNote, setZgNote] = useState("");
+  const { zg } = useLive();
+  const ran = useRef(false);
   const order = useMemo(() => {
     const m = new Map<Pii, number>();
     let k = 0;
@@ -121,8 +125,36 @@ function Mask({ onDone }: { onDone: () => void }) {
     setTimeout(() => setPhase(1), 700);
     setTimeout(() => setPhase(2), 1600);
     setTimeout(() => setPhase(3), maskEnd);
-    setTimeout(() => setPhase(4), maskEnd + 1800);
   });
+
+  // 0G Private Computer: real sealed inference when the API has a key, otherwise simulated.
+  useEffect(() => {
+    if (phase !== 3 || ran.current) return;
+    ran.current = true;
+    const selfText = msgs
+      .filter((m) => m.role === "self")
+      .map((m) => m.parts.map((x) => (typeof x === "string" ? x : x.ph)).join(""))
+      .join("\n");
+    if (!zg) {
+      setTimeout(() => setPhase(4), 1800);
+      return;
+    }
+    api
+      .analyseUpload(selfText)
+      .then((r) => {
+        const f = r.facets;
+        const m = f.mentions[0];
+        setChips(
+          [f.domain_path, f.age_band, f.budget_consciousness && `budget: ${f.budget_consciousness}`, ...(m?.events ?? []).slice(0, 2), m?.price_judgement?.replace("_", " ")].filter(
+            (x): x is string => !!x,
+          ),
+        );
+        setReqId(r.receipt.request_id);
+        setZgNote(`${r.receipt.tee_verified ? "TEE verified" : "sealed"} · ${r.receipt.model}${r.extraIdentifiers.length ? ` · +${r.extraIdentifiers.length} identifiers caught` : ""}`);
+      })
+      .catch(() => setZgNote("0G unavailable · simulated"))
+      .finally(() => setPhase(4));
+  }, [phase, zg, msgs]);
 
   return (
     <div className="stack">
@@ -149,10 +181,13 @@ function Mask({ onDone }: { onDone: () => void }) {
       </Panel>
       <div className={`og-strip${phase >= 3 ? " on" : ""}${phase >= 4 ? " done" : ""}`}>
         <SponsorTag who="0G" />
-        <span className="og-label">{phase >= 4 ? "Facets extracted in TEE" : phase >= 3 ? "Extracting in TEE…" : "0G Private Computer"}</span>
+        <span className="og-label">
+          {phase >= 4 ? "Facets extracted in TEE" : phase >= 3 ? "Extracting in TEE…" : "0G Private Computer"}
+          {zgNote && <small className="og-note">{zgNote}</small>}
+        </span>
         <div className="og-chips">
           {phase >= 4 &&
-            FACET_CHIPS.map((c, i) => (
+            chips.map((c, i) => (
               <span key={c} className="facet-chip" style={{ ["--i" as string]: i }}>
                 {c}
               </span>
