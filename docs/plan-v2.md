@@ -1,5 +1,7 @@
 # Plan v2 — user-owned data marketplace
 
+> **Pivot.** This plan replaces the previous idea, Preflight (plan-aware token allowance hygiene with an optional sponsored slot). Every commit up to and including `ebf6c06` belongs to Preflight. The repository was cleared at the pivot, and this plan is now the only thing in it.
+
 Status: **approved 2026-11-06** with the default decisions and Hedera as the x402 chain (section 9). Nothing here is built yet. Items tagged **verify:** are assumptions that must be tested before we rely on them.
 
 This plan merges our original idea (diagram: local masking → encrypted store on Arkiv → merchants buy via x402) with the parts of the friend's pitch kit that fill gaps. Our plan is the spine. The friend's plan contributes a public search index, expiry as consent, and the merchant query agent. A few new fixes close holes neither version handled.
@@ -118,17 +120,17 @@ Residual risks to state in Q&A: masking can miss things, and masked text can sti
 
 Known limit: masking runs on the client, so a modified client can lie. zkTLS proves the original was real but not that the masked version came from it. Disputes are the backstop.
 
-## 8. Reuse from the current repo
+## 8. Reuse from the previous idea's history
 
-| Existing file | Reuse |
+The repository was cleared at the pivot, so the new build starts from an empty tree. The previous idea (Preflight) is still in git history, and a few of its files are worth copying back. Retrieve them with `git show ebf6c06:<path>`.
+
+| File at `ebf6c06` | Reuse |
 | --- | --- |
 | `packages/shared/src/hygiene/envelope.ts` | AES-GCM envelope (versioned, AAD-bound, fails closed). Generalise from `ConfirmedPlan` to the listing payload |
 | `apps/preflight/src/hygiene/arkiv.ts` | Arkiv SDK client, schema definition, write and read. Switch the writer to the platform wallet; add indexed public tags |
 | `apps/server/src/index.ts` | 0G router relay with `X-0G-Provider-Trust-Mode` and receipt capture. Reuse for the merchant query agent |
-| `apps/server` | Add x402 middleware (Hedera), key-release endpoint, payout ledger and payout job |
-| `apps/preflight` UI shell | Replace with User tab (upload → review → publish → earnings) and Merchant tab (query → preview → buy → decrypt) |
 
-New code: export parsers, masking pipeline, extractor, key wrapping (ECDH or RSA-OAEP via Web Crypto), watermarking, x402 integration on Hedera, Hedera payout job, duplicate detection.
+To build new: User tab (upload → review → publish → earnings), Merchant tab (query → preview → buy → decrypt), server with x402 middleware on Hedera, key-release endpoint, payout ledger and payout job, export parsers, masking pipeline, extractor, key wrapping (ECDH or RSA-OAEP via Web Crypto), watermarking, duplicate detection.
 
 ## 9. Approved decisions
 
