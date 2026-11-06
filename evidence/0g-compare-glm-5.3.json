@@ -1,0 +1,195 @@
+{
+  "model": "glm-5.3",
+  "trust_mode": "private",
+  "at": "2026-11-06T22:45:14.861Z",
+  "passed": 4,
+  "total": 5,
+  "rows": [
+    {
+      "job": "upload.classify",
+      "pass": true,
+      "checks": {
+        "domain_beauty": true,
+        "has_mentions": true,
+        "abandoned_event": true,
+        "price_too_expensive": true,
+        "age_18_24": true,
+        "no_placeholders_in_facets": true,
+        "brand_kept": true
+      },
+      "ms": 21432,
+      "requests": [
+        "ba176356-45e2-4c96-b126-f3dfbd0b381f"
+      ],
+      "tee": [
+        false
+      ],
+      "output": {
+        "domain_path": "beauty/skincare/serums",
+        "age_band": "18-24",
+        "budget_consciousness": "high",
+        "mentions": [
+          {
+            "subject": "Minimalist 10% niacinamide serum",
+            "events": [
+              "bought",
+              "used",
+              "complained",
+              "abandoned"
+            ],
+            "sentiment": -0.6,
+            "reasons": [
+              "no visible results after two weeks"
+            ],
+            "price_judgement": "fair"
+          },
+          {
+            "subject": "The Ordinary",
+            "events": [
+              "compared"
+            ],
+            "sentiment": 0.2,
+            "reasons": [
+              "friend recommended it works better"
+            ],
+            "price_judgement": "too_expensive"
+          },
+          {
+            "subject": "Nykaa",
+            "events": [],
+            "sentiment": 0,
+            "reasons": [
+              "platform for The Ordinary purchase"
+            ]
+          },
+          {
+            "subject": "sunscreen",
+            "events": [
+              "considering"
+            ],
+            "sentiment": 0.4,
+            "reasons": [
+              "switching to basic routine"
+            ]
+          },
+          {
+            "subject": "basic moisturiser",
+            "events": [
+              "considering"
+            ],
+            "sentiment": 0.4,
+            "reasons": [
+              "affordable under ₹400 total"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "job": "request.records",
+      "pass": true,
+      "checks": {
+        "domain": true,
+        "age": true,
+        "region": true,
+        "event": true,
+        "no_question": true
+      },
+      "ms": 4290,
+      "requests": [
+        "35c1a29e-a69b-47b6-9976-30f394d81ca7"
+      ],
+      "tee": [
+        false
+      ],
+      "output": {
+        "domain": "beauty",
+        "age": "18-24",
+        "region": "IN",
+        "event": "abandoned"
+      }
+    },
+    {
+      "job": "request.idea",
+      "pass": true,
+      "checks": {
+        "domain": true,
+        "region": true,
+        "question": true
+      },
+      "ms": 4167,
+      "requests": [
+        "e034cc36-2728-4e63-b282-8c4fd75fbe50"
+      ],
+      "tee": [
+        false
+      ],
+      "output": {
+        "filters": {
+          "domain": "beauty",
+          "age": "18-24",
+          "region": "IN",
+          "event": "abandoned"
+        },
+        "question": "Why do young Indians stop using skincare serums, and is price the main reason?",
+        "receipt": {
+          "request_id": "e034cc36-2728-4e63-b282-8c4fd75fbe50",
+          "model": "glm-5.3",
+          "trust_mode": "private",
+          "tee_verified": null,
+          "provider": "0xD179F4526064846dE9a9E9D93683AF75CB72E503",
+          "zg_res_key": "2242cc9f-8be6-459c-a738-031330477eb3",
+          "cost_neuron": "450",
+          "cost_usd_micro": "450",
+          "e2ee": "sealed",
+          "latency_ms": 4167
+        }
+      }
+    },
+    {
+      "job": "request.idea_laptops",
+      "pass": true,
+      "checks": {
+        "domain": true,
+        "region": true,
+        "age": true
+      },
+      "ms": 3216,
+      "requests": [
+        "a6df5a77-33e9-443b-b2dc-61699ee66698"
+      ],
+      "tee": [
+        false
+      ],
+      "output": {
+        "filters": {
+          "domain": "electronics",
+          "age": "18-24",
+          "region": "IN-west"
+        },
+        "question": "Which budget laptops under ₹40,000 do Mumbai students prefer for college use?",
+        "receipt": {
+          "request_id": "a6df5a77-33e9-443b-b2dc-61699ee66698",
+          "model": "glm-5.3",
+          "trust_mode": "private",
+          "tee_verified": null,
+          "provider": "0xD179F4526064846dE9a9E9D93683AF75CB72E503",
+          "zg_res_key": "e37bd082-fd38-4ecd-944e-1ab4e1f144b0",
+          "cost_neuron": "401",
+          "cost_usd_micro": "401",
+          "e2ee": "sealed",
+          "latency_ms": 3215
+        }
+      }
+    },
+    {
+      "job": "insight.report",
+      "pass": false,
+      "checks": {},
+      "ms": 24406,
+      "requests": [],
+      "tee": [],
+      "error": "glm-5.3 returned JSON of the wrong shape"
+    }
+  ]
+}

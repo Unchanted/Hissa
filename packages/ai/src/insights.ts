@@ -10,7 +10,14 @@
  *
  * Output never contains user_refs, excerpts, raw labels or exact counts.
  */
-import { sealedJson, ZeroGError, type InferenceReceipt } from "./zerog.js";
+import { CHAT_MODELS, sealedJson, ZeroGError, type InferenceReceipt } from "./zerog.js";
+
+/**
+ * Bulk steps (label, group) try 0gm first: in live tests glm-5.3 sometimes echoed the input in
+ * the label step, while 0gm labelled reliably and costs about 15x less. ZG_CHAT_MODELS, when
+ * set, overrides this order for every step.
+ */
+const BULK_MODELS: readonly string[] = process.env["ZG_CHAT_MODELS"]?.trim() ? CHAT_MODELS : ["0gm-1.0-35b-a3b", "glm-5.3"];
 
 export type InsightItem = { user_ref: string; excerpts: string[] };
 export type InsightInput = {
@@ -124,6 +131,7 @@ export async function runInsight(input: InsightInput, opts: InsightOptions = {})
       };
       const { data, receipt } = await sealedJson(LABEL_SYSTEM, JSON.stringify(payload), {
         maxTokens: 2000,
+        models: BULK_MODELS,
         accept: (d) => Array.isArray((d as { labels?: unknown })?.labels) && ((d as { labels: unknown[] }).labels.length > 0),
       });
       return { idx, data, receipt };
@@ -150,6 +158,7 @@ export async function runInsight(input: InsightInput, opts: InsightOptions = {})
   if (distinct.length) {
     const { data, receipt } = await sealedJson(GROUP_SYSTEM, JSON.stringify({ task: 'Return {"themes":[{"name":"...","labels":["..."]}]}.', question, labels: distinct }), {
       maxTokens: 2000,
+      models: BULK_MODELS,
       accept: (d) => Array.isArray((d as { themes?: unknown })?.themes),
     });
     receipts.push(receipt);

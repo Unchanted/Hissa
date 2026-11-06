@@ -1,0 +1,205 @@
+{
+  "model": "0gm-1.0-35b-a3b",
+  "trust_mode": "private",
+  "at": "2026-11-06T22:45:37.437Z",
+  "passed": 4,
+  "total": 5,
+  "rows": [
+    {
+      "job": "upload.classify",
+      "pass": false,
+      "checks": {
+        "domain_beauty": true,
+        "has_mentions": true,
+        "abandoned_event": false,
+        "price_too_expensive": true,
+        "age_18_24": true,
+        "no_placeholders_in_facets": true,
+        "brand_kept": true
+      },
+      "ms": 3308,
+      "requests": [
+        "0b88c799-f279-4760-aad3-b660ada77481"
+      ],
+      "tee": [
+        false
+      ],
+      "output": {
+        "domain_path": "beauty/skincare/serums",
+        "age_band": "18-24",
+        "budget_consciousness": "high",
+        "mentions": [
+          {
+            "subject": "Minimalist 10% niacinamide serum",
+            "events": [
+              "used",
+              "complained"
+            ],
+            "sentiment": -0.8,
+            "reasons": [
+              "zero difference after 2 weeks"
+            ],
+            "price_judgement": "fair"
+          },
+          {
+            "subject": "The Ordinary",
+            "events": [
+              "compared"
+            ],
+            "sentiment": 0.2,
+            "reasons": [
+              "friend says works better"
+            ],
+            "price_judgement": "too_expensive"
+          }
+        ]
+      }
+    },
+    {
+      "job": "request.records",
+      "pass": true,
+      "checks": {
+        "domain": true,
+        "age": true,
+        "region": true,
+        "event": true,
+        "no_question": true
+      },
+      "ms": 2366,
+      "requests": [
+        "a7fedfea-0c11-4418-81e3-43b5571c45ec"
+      ],
+      "tee": [
+        false
+      ],
+      "output": {
+        "domain": "beauty",
+        "age": "18-24",
+        "region": "IN",
+        "event": "abandoned"
+      }
+    },
+    {
+      "job": "request.idea",
+      "pass": true,
+      "checks": {
+        "domain": true,
+        "region": true,
+        "question": true
+      },
+      "ms": 1518,
+      "requests": [
+        "764809bf-72fe-4366-bb8e-d3da25573f09"
+      ],
+      "tee": [
+        false
+      ],
+      "output": {
+        "filters": {
+          "domain": "beauty",
+          "age": "18-24",
+          "region": "IN",
+          "event": "abandoned"
+        },
+        "question": "Why do young Indians abandon skincare serums due to high prices, and would trial sizes help?",
+        "receipt": {
+          "request_id": "764809bf-72fe-4366-bb8e-d3da25573f09",
+          "model": "0gm-1.0-35b-a3b",
+          "trust_mode": "private",
+          "tee_verified": null,
+          "provider": "0xf4FB8d2bD856e672b5f9848b0eD235A20079B250",
+          "zg_res_key": "e7b9c610-ec8c-417a-b335-79a96a72720d",
+          "cost_neuron": "46",
+          "cost_usd_micro": "46",
+          "e2ee": "sealed",
+          "latency_ms": 1518
+        }
+      }
+    },
+    {
+      "job": "request.idea_laptops",
+      "pass": true,
+      "checks": {
+        "domain": true,
+        "region": true,
+        "age": true
+      },
+      "ms": 1490,
+      "requests": [
+        "5f6e383b-04de-4306-a40e-41271fcffc09"
+      ],
+      "tee": [
+        false
+      ],
+      "output": {
+        "filters": {
+          "domain": "electronics",
+          "age": "18-24",
+          "region": "IN-west",
+          "event": "considering"
+        },
+        "question": "What budget laptops under ₹40,000 are students in Mumbai considering for college?",
+        "receipt": {
+          "request_id": "5f6e383b-04de-4306-a40e-41271fcffc09",
+          "model": "0gm-1.0-35b-a3b",
+          "trust_mode": "private",
+          "tee_verified": null,
+          "provider": "0xf4FB8d2bD856e672b5f9848b0eD235A20079B250",
+          "zg_res_key": "466b2a56-9e82-4dad-81e9-47c088f6c4f6",
+          "cost_neuron": "46",
+          "cost_usd_micro": "46",
+          "e2ee": "sealed",
+          "latency_ms": 1490
+        }
+      }
+    },
+    {
+      "job": "insight.report",
+      "pass": true,
+      "checks": {
+        "themes_2_to_7": true,
+        "top_theme_is_price": true,
+        "verdict_given": true,
+        "verdict_reason": true,
+        "report_length_ok": true,
+        "says_approximate": true,
+        "all_sealed": true
+      },
+      "ms": 13767,
+      "requests": [
+        "5507cb6b-6c63-4f7c-b499-ae3f2c7b8cee",
+        "f7209e68-e645-4ffd-aad1-009daebf7237",
+        "b550abae-6e55-4de1-8bdc-4f3c912b2ee4",
+        "c06601a8-25cf-42b5-b4ce-8c628919015d",
+        "0b112573-2f57-43e8-9493-dd2ae8afa198"
+      ],
+      "tee": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "output": {
+        "themes": [
+          {
+            "name": "price concerns",
+            "share_pct": 43.1
+          },
+          {
+            "name": "product quality",
+            "share_pct": 43.1
+          },
+          {
+            "name": "other",
+            "share_pct": 13.8
+          }
+        ],
+        "verdict": "partly",
+        "verdict_reason": "The hypothesis is partly supported because while price concerns are a major factor (43.1%), product quality is equally significant (43.1%), suggesting that price alone is not the sole reason for discontinuation.",
+        "words": 211,
+        "report": "# Insights on Skincare Serum Usage Among Young Adults in India\n\nBased on aggregate, privacy-protected data, here are the approximate reasons why 18-24 year olds in India stop using skincare serums. Please note that these figures are approximate because statistical noise was added to protect privacy.\n\n*   **Price Concerns (43.1%):** A significant portion of users cite cost as a primary barrier. This suggests that financial considerations play a major role in the decision to discontinue use.\n*   **Product Quality (43.1%):** An equally large share of users attribute their discontinuation to issues with product quality. This indicates that efficacy, texture, or results are just as critical as price.\n*   **Other Reasons (13.8%):** A smaller segment of users stop using serums for various other unspecified reasons.\n\n**What to do:** Consider a dual-pronged strategy that addresses both cost and quality. Since price and quality are tied as the top two reasons, offering a lower-priced trial size (such as the proposed ₹299 option) may help alleviate price concerns. However, this alone may not be sufficient if quality issues persist. It is crucial to ensure that the trial product maintains high quality to retain users who are sensitive to both price and performance. Further investigation into specific quality complaints could help refine the product offering.\n"
+      }
+    }
+  ]
+}
