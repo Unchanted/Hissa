@@ -11,8 +11,10 @@ export function createAppListingRoutes(store: Pick<Store, "publish" | "mutate" |
     if (error instanceof PublicationError) {
       if (error.kind === "invalid") return c.json({ error: "Invalid encrypted listing or signature" }, 400);
       if (error.kind === "conflict") return c.json({ error: "Listing changed, revoked, or request already consumed; refresh before retrying" }, 409);
+      if (error.kind === "unavailable") console.warn(`[arkiv] ${c.req.method} ${c.req.path}: unavailable (RPC, gas estimate, or tx cost above ARKIV_MAX_TX_COST_WEI)`);
       if (error.kind === "uncertain") return c.json({ error: "Arkiv transaction needs reconciliation; do not create a replacement listing" }, 503);
     }
+    console.warn(`[arkiv] ${c.req.method} ${c.req.path} failed: ${error instanceof PublicationError ? error.kind : (error as Error).message}`);
     return c.json({ error: "Arkiv unavailable" }, 503);
   });
   app.use("*", bodyLimit({ maxSize: 270000, onError: (c) => c.json({ error: "Listing too large" }, 413) }));

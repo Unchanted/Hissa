@@ -43,7 +43,7 @@ export async function setupArkiv(root) {
   const publicKey = `0x${ecdh.getPublicKey().toString("hex")}`;
   const pinned = parse(web).VITE_SERVICE_PUBLIC_KEY;
   if (pinned && pinned.toLowerCase() !== publicKey.toLowerCase()) throw new Error("Existing web service-key pin does not match; no configuration was changed");
-  if (!env.ARKIV_MAX_TX_COST_WEI?.trim()) text = setValue(text, "ARKIV_MAX_TX_COST_WEI", "1000000000000000");
+  if (!env.ARKIV_MAX_TX_COST_WEI?.trim()) text = setValue(text, "ARKIV_MAX_TX_COST_WEI", "20000000000000000");
   web = setValue(web, "VITE_SERVICE_PUBLIC_KEY", publicKey);
   await mkdir(resolve(root, "apps/web"), { recursive: true });
   await writeConfig(path, text);
