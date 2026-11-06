@@ -1,0 +1,35 @@
+# Fly.io config for the demo API (apps/server/src/api.ts). See docs/deploy.md.
+# One always-on machine in Singapore (nearest Fly region to Mumbai): the API keeps an Arkiv write journal and lock on disk,
+# holds insight jobs in memory between requests and pays its own x402 routes, so it must not
+# scale to several machines or stop when idle.
+app = "hissa-mumbai-api"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile.api"
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "4021"
+
+[[mounts]]
+  source = "hissa_evidence"
+  destination = "/app/evidence"
+
+[http_service]
+  internal_port = 4021
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "60s"
+    interval = "30s"
+    timeout = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
