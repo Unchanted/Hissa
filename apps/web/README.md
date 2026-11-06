@@ -16,13 +16,17 @@ cd apps/web && npm install
 npm run dev               # http://localhost:5173
 ```
 
-**Live vs simulated.** The nav shows `LIVE · HEDERA TESTNET` when the demo API is
+**Live only.** The nav shows `LIVE · HEDERA TESTNET` when the demo API is
 reachable: record purchases (1 ℏ) and Telegram messages (0.5 ℏ) are real x402 payments
 from the buyer agent to the treasury, each logged to the HCS topic, and *Pay out* sends
 the seller's 80% from the treasury as a Hedera Scheduled Transaction. Every hash links
 to HashScan, and the header shows live balances from the mirror node. Without the API
-the app shows `SIMULATED` and fakes the same flow; if the API drops mid-demo, payments
-fall back to simulated and say so in the agent log.
+(or if it drops mid-demo) discovery, payment and publish are refused and the app shows
+"Marketplace API unavailable"; nothing is faked.
+
+**API override.** Open the app with `?api=<API URL>` (for example an HTTPS tunnel) to
+point it at a remote API; the value is remembered in the browser and `?api=reset` clears it.
+The API must allow the web origin via `ALLOWED_ORIGINS`.
 
 **On-device masking.** Names and places are masked in the browser by a small NER model
 (`Xenova/bert-base-NER`, int8, about 109 MB, run with Transformers.js in a Web Worker and

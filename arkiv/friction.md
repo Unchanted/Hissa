@@ -1,5 +1,7 @@
 # Arkiv friction and limits
 
+Note: statements below about incomplete integration and "no new writes" predate the integrated app run described in the last section.
+
 These notes distinguish storage constraints from application guarantees. The read-side implementation uses SDK `1.0.1`; it is not a complete marketplace integration.
 
 - **Public data:** Arkiv has no read access control. Indexed values, unindexed strings and `bytes` are public. The schema tag is a namespace, not authorization. Sealed blobs depend on the application's encryption and key custody.
@@ -17,3 +19,10 @@ The package pins SDK `1.0.1`, `viem` `2.57.16` and TypeScript `5.9.3`. Determini
 The final `createArkivReader` smoke check also passed against the public RPC: the historical deleted probe listing returned `null`, all four listing/receipt page methods returned empty pages, and an unused synthetic payment identifier returned `false`. Populated data, pagination, rejection paths and decoding were checked with SDK transport fixtures (`npm test`, eight tests total including the foundation tests); `npm run typecheck` passed. No signing key or access key was loaded for the live reads.
 
 Sources: [SDK 1.0.1 expiration helpers](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/utils/expirationTime.ts), [query builder](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/query/queryBuilder.ts), and [the implementation gates](../docs/work-plan.md#6-arkiv-implementation-gates-skills-review-6-november-2026).
+
+## Integrated app run (7 November 2026)
+
+- The demo API published encrypted listings to Rabdi through the confirmed publisher. Example listing id `lst_eebc6757`, listing receipt tx `0x735f87614fbfff16006b9c04e546a647716322e2dca072cbfc0bf9932526146d` ([explorer](https://rabdi.explorer.arkiv.network/tx/0x735f87614fbfff16006b9c04e546a647716322e2dca072cbfc0bf9932526146d)).
+- Listing records are v2: the full masked chat is gzipped inside the AES-GCM ciphertext. About 68 KiB for a 129k-character export, under the 128 KiB entity cap.
+- The default `ARKIV_MAX_TX_COST_WEI` was raised to 0.02 GLM because larger entities need more than 1M gas.
+- If the API is killed, a stale `publisher.lock` is left behind. An operator must remove it after confirming no writer is running.
