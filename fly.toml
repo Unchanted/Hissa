@@ -1,9 +1,9 @@
 # Fly.io config for the demo API (apps/server/src/api.ts). See docs/deploy.md.
-# One always-on machine in Mumbai: the API keeps an Arkiv write journal and lock on disk,
+# One always-on machine in Singapore (nearest Fly region to Mumbai): the API keeps an Arkiv write journal and lock on disk,
 # holds insight jobs in memory between requests and pays its own x402 routes, so it must not
 # scale to several machines or stop when idle.
-app = "hissa-api"
-primary_region = "bom"
+app = "hissa-mumbai-api"
+primary_region = "sin"
 
 [build]
   dockerfile = "Dockerfile.api"
