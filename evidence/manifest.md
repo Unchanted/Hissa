@@ -43,9 +43,14 @@ Localhost ports are distinct origins but the same site, so this is not proof of 
 
 Checked in the in-app browser against the seeded node: manual 800/500 plan confirmed; chain read at one pinned block shows B balance 0 and allowance 1000; finding shows 0 exposed now, up to 800 after funding, 300 if repayment left first. Revoke preview builds `approve(S, 0)` from B with value 0 on chain 31337; "Review in wallet" stays disabled until account B on chain 31337 is connected. Wallet signing has not been tested yet (no browser wallet in the test browser). With no node running, reads show "Unknown", never "safe".
 
+## Sponsored handoff (local)
+
+- Real Chrome: clicking "Use my Preflight preferences" in the slot opened the handoff popup (no "popup blocked" state). The popup window is outside the automation tab group, so approve, consent, C02, opt-out and back to C01 have NOT yet been driven end to end. Needs a manual click-through.
+- In-app test browser: popups open in the same tab, so `window.opener` is null; the handoff page correctly shows "not connected" and cannot change the slot.
+
 ## Partner integrations
 
 | Partner | Status |
 | --- | --- |
 | 0G inference | Router reachable (`GET /v1/models` returned a model list). No completion yet: no credential configured. |
-| Arkiv (Rabdi) | RPC returned chain ID 0x76edaf (7794095). No write yet. |
+| Arkiv (Rabdi) | RPC returned chain ID 0x76edaf (7794095). Browser restore by entity key ran against live Rabdi: a missing entity returned a recoverable error. No write yet: needs a funded wallet. |
