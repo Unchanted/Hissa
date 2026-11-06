@@ -159,3 +159,11 @@ export function matches(r: { region: string; events: string[] }, f: Filters, dom
   if (f.region === "IN-west" && r.region !== "IN-west") return false;
   return true;
 }
+
+/** Simulated 0G cohort report, used when the API has no 0G key. */
+export const SIM_THEMES = [
+  { name: "Too expensive for the results", share_pct: 37 },
+  { name: "No visible change in 2–3 weeks", share_pct: 26 },
+  { name: "Irritation or breakouts", share_pct: 15 },
+  { name: "Routine felt too complicated", share_pct: 12 },
+];

@@ -12,6 +12,23 @@ export type Balances = { agent: number; seller: number; treasury: number; owedTo
 export type Paid = { txId: string; hashscan: string; amountHbar: string; policy?: string[] };
 export type Payout = Paid & { scheduleId: string; seller: string };
 
+/** 0G Private Computer evidence for one sealed call (packages/ai/src/zerog.ts). */
+export type ZgReceipt = { request_id: string; model: string; tee_verified: boolean | null; provider: string | null; latency_ms: number };
+export type UploadAnalysis = {
+  extraIdentifiers: { text: string; type: string }[];
+  maskedText: string;
+  facets: {
+    domain_path: string;
+    age_band?: string;
+    budget_consciousness?: string;
+    mentions: { subject: string; events: string[]; price_judgement?: string }[];
+  };
+  receipt: ZgReceipt;
+};
+export type InsightResult =
+  | { status: "ok"; cohort_bucket: string; themes: { name: string; share_pct: number }[]; receipts: ZgReceipt[]; privacy: { kMin: number; epsilon: number } }
+  | { status: "refused"; reason: string };
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -43,22 +60,28 @@ export const api = {
     call<Paid>("/agent/contact", { method: "POST", body: JSON.stringify({ listingId, message, budgetLeftHbar }) }),
   payout: () => call<Payout>("/api/payouts", { method: "POST" }),
   balances: () => call<Balances>("/api/balances"),
+  analyseUpload: (maskedText: string) =>
+    call<UploadAnalysis>("/api/ai/analyse-upload", { method: "POST", body: JSON.stringify({ maskedText }), signal: AbortSignal.timeout(45000) }),
+  insight: () => call<InsightResult>("/api/ai/insight-demo", { method: "POST", body: "{}", signal: AbortSignal.timeout(60000) }),
 };
 
 type LiveCtx = {
   live: boolean;
+  /** 0G Private Computer reachable with a key configured on the API. */
+  zg: boolean;
   checked: boolean;
   accounts: Accounts | null;
   balances: Balances | null;
   /** Refresh balances now and again after the mirror node catches up. */
   refresh: () => void;
 };
-const Ctx = createContext<LiveCtx>({ live: false, checked: false, accounts: null, balances: null, refresh: () => undefined });
+const Ctx = createContext<LiveCtx>({ live: false, zg: false, checked: false, accounts: null, balances: null, refresh: () => undefined });
 
 export function LiveProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Accounts | null>(null);
   const [checked, setChecked] = useState(false);
   const [balances, setBalances] = useState<Balances | null>(null);
+  const [zg, setZg] = useState(false);
   const timers = useRef<number[]>([]);
 
   const load = useCallback(() => {
@@ -73,6 +96,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       .then((h: { accounts: Accounts }) => {
         setAccounts(h.accounts);
         load();
+        call<{ keyConfigured: boolean }>("/api/ai/status").then((x) => setZg(!!x.keyConfigured), () => setZg(false));
       })
       .catch(() => setAccounts(null))
       .finally(() => {
@@ -93,7 +117,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     timers.current = [3000, 7000].map((ms) => window.setTimeout(load, ms));
   }, [load]);
 
-  return <Ctx.Provider value={{ live: !!accounts, checked, accounts, balances, refresh }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ live: !!accounts, zg, checked, accounts, balances, refresh }}>{children}</Ctx.Provider>;
 }
 
 export const useLive = () => useContext(Ctx);

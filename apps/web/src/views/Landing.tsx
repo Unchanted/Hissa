@@ -15,10 +15,34 @@ const HEADLINE: [string, boolean][][] = [
   ],
 ];
 
-const STEPS = [
-  { n: "01", tag: "0G", title: "Upload", body: "Masked on your device. Structured in a TEE." },
-  { n: "02", tag: "ARKIV", title: "List", body: "Encrypted. Your consent, your expiry." },
-  { n: "03", tag: "HEDERA", title: "Get paid", body: "AI agents pay per record — and per message." },
+type Tag = "BROWSER" | "0G" | "ARKIV" | "HEDERA" | "AI AGENT" | "DELIVERED";
+const LANES: { who: string; title: string; sub: string; tone: string; steps: [Tag, string][] }[] = [
+  {
+    who: "DATA PROVIDERS",
+    title: "Users",
+    sub: "Own your data. Get paid.",
+    tone: "users",
+    steps: [
+      ["BROWSER", "Upload chat"],
+      ["BROWSER", "Mask PII on device"],
+      ["0G", "Extract insights in TEE"],
+      ["ARKIV", "Encrypted listing"],
+      ["HEDERA", "Earn rewards"],
+    ],
+  },
+  {
+    who: "DATA BUYERS",
+    title: "AI companies",
+    sub: "Buy data and insights. Pay per use.",
+    tone: "buyers",
+    steps: [
+      ["AI AGENT", "Request data or insights"],
+      ["ARKIV", "Discover listings"],
+      ["HEDERA", "Agent pays via x402"],
+      ["0G", "Private analysis"],
+      ["DELIVERED", "Decrypted data for AI training & insights"],
+    ],
+  },
 ];
 
 export function Landing() {
@@ -67,23 +91,43 @@ export function Landing() {
         </div>
       </section>
 
-      <section className="section">
-        <div className="track three">
-          <div className="track-line">
-            <i className="track-pulse" />
+      <section className="section" id="pipeline">
+        <div className="section-head center">
+          <h2>
+            <em>Hissa</em> flips it.
+          </h2>
+          <div className="pillars">
+            <span>You own the data</span>
+            <span>You set consent</span>
+            <span>You get paid</span>
           </div>
-          {STEPS.map((s) => (
-            <article className="track-step" key={s.n}>
-              <span className="track-node" />
-              <div className="track-meta">
-                <span className="mono">{s.n}</span>
-                <span className="track-tag">{s.tag}</span>
-              </div>
-              <h3>{s.title}</h3>
-              <p>{s.body}</p>
-            </article>
-          ))}
         </div>
+        {LANES.map((lane, li) => (
+          <div key={lane.who} className={`lane ${lane.tone}`}>
+            <div className="lane-head">
+              <span className="eyebrow">{lane.who}</span>
+              <h3>{lane.title}</h3>
+              <p>{lane.sub}</p>
+            </div>
+            <div className="lane-steps">
+              {lane.steps.map(([tag, text], i) => (
+                <div key={text} className={`lane-step t-${tag.split(" ")[0]!.toLowerCase()}`} style={{ ["--i" as string]: li * 5 + i }}>
+                  <div className="row between">
+                    <span className="lane-tag">{tag}</span>
+                    <span className="mono muted small">0{i + 1}</span>
+                  </div>
+                  <b>{text}</b>
+                </div>
+              ))}
+            </div>
+            {li === 0 && (
+              <div className="lane-links">
+                <span className="link-arkiv">↓ Listings shared on Arkiv</span>
+                <span className="link-hbar">↑ HBAR flows back to users</span>
+              </div>
+            )}
+          </div>
+        ))}
       </section>
 
       <section className="section final">
