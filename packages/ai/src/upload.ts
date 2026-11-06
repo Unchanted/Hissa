@@ -16,7 +16,7 @@ export type Mention = {
 export type Facets = { domain_path: string; age_band?: string; budget_consciousness?: "low" | "medium" | "high"; mentions: Mention[] };
 export type UploadAnalysis = { extraIdentifiers: ExtraIdentifier[]; maskedText: string; facets: Facets; receipt: InferenceReceipt };
 
-const SYSTEM = `You process one person's chat messages. Some identifiers are already masked as placeholders like [EMAIL_1]; leave those alone.
+const SYSTEM = `You process one person's chat messages. Some identifiers are already masked as placeholders like [EMAIL_1] or [AGE 18–24]; leave those alone.
 Return ONLY a JSON object with two keys:
 "extra_identifiers": every remaining piece of text that could identify a real person, copied EXACTLY as written: people's names (PERSON), specific addresses, streets, neighbourhoods or small towns (PLACE), employers, schools or small organisations tied to the person (ORG), other unique identifiers (OTHER). Do NOT include brands or products, big cities, countries, or placeholders. Format: [{"text":"...","type":"PERSON"}].
 "facets": {"domain_path":"<top>/<sub>/<detail>" with top one of tech, career, shopping, beauty, finance, travel, education, food, entertainment, other; "age_band"?: "18-24"|"25-34"|"35-44"|"45-54"|"55+" only if evident; "budget_consciousness"?: "low"|"medium"|"high" only if evident; "mentions": up to 10 of {"subject":"<brand, product, service or topic>","events": subset of ["considering","compared","bought","used","abandoned","recommended","complained"],"sentiment": -1..1,"reasons":["<short reason, no identifiers>"],"price_judgement"?: "too_expensive"|"fair"|"cheap"}}.
@@ -25,8 +25,9 @@ Never put people's names or other identifiers inside "facets". JSON only.`;
 const TYPES = new Set(["PERSON", "PLACE", "ORG", "OTHER"]);
 const EVENTS = new Set(["considering", "compared", "bought", "used", "abandoned", "recommended", "complained"]);
 const AGE_BANDS = new Set(["18-24", "25-34", "35-44", "45-54", "55+"]);
-/** A placeholder left by earlier masking, e.g. [EMAIL_1] or [PERSON_2]. */
-const PLACEHOLDER = /\[[A-Z_]+_\d+\]/g;
+/** A placeholder left by earlier masking: numbered like [EMAIL_1], or a coarse tag like [AGE 18–24]. */
+const PLACEHOLDER = /\[[A-Z][A-Z_]*(?:_\d+| [^[\]\n]{1,30})\]/g;
+const IS_PLACEHOLDER = new RegExp(`^(?:${PLACEHOLDER.source})$`);
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** One regex: existing placeholders first (kept as they are), then identifiers longest first. */
@@ -58,7 +59,12 @@ export async function analyseUpload(regexMaskedText: string): Promise<UploadAnal
   // "Priya". One pass means a short identifier can never match inside a placeholder we inserted.
   let maskedText = regexMaskedText;
   if (extraIdentifiers.length) {
+    // Continue numbering after placeholders already in the text, so 0G's [PERSON_3] never
+    // collides with an on-device [PERSON_1].
     const counters: Record<string, number> = {};
+    for (const [, type, n] of regexMaskedText.matchAll(/\[([A-Z_]+)_(\d+)\]/g)) {
+      counters[type!] = Math.max(counters[type!] ?? 0, Number(n));
+    }
     const placeholderFor = new Map<string, string>();
     for (const id of [...extraIdentifiers].sort((a, b) => b.text.length - a.text.length)) {
       counters[id.type] = (counters[id.type] ?? 0) + 1;
@@ -71,7 +77,7 @@ export async function analyseUpload(regexMaskedText: string): Promise<UploadAnal
   // Facets: accept the expected shape only, and scrub any identifier the model copied into the
   // free-text fields (case-insensitive, longest first). Keys and enum values are never touched.
   const scrubRe = extraIdentifiers.length ? identifierPattern(extraIdentifiers.map((x) => x.text), "gi") : null;
-  const scrub = (v: string) => (scrubRe ? v.replace(scrubRe, (m) => (/^\[[A-Z_]+_\d+\]$/.test(m) ? m : "[REDACTED]")) : v);
+  const scrub = (v: string) => (scrubRe ? v.replace(scrubRe, (m) => (IS_PLACEHOLDER.test(m) ? m : "[REDACTED]")) : v);
   const f = (out.facets ?? {}) as Record<string, unknown>;
   const facets: Facets = {
     domain_path: typeof f["domain_path"] === "string" && f["domain_path"].trim() ? scrub(f["domain_path"]) : "other",

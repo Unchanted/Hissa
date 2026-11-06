@@ -6,6 +6,7 @@ import { evmHash, hederaTxId, hex, isoWeek, ogRequestId, sleep } from "../lib";
 import { Phone } from "../components/Phone";
 import { api, useLive } from "../live";
 import { pendingEarnings, useStore } from "../store";
+import { ZG_NOTE, band, teeLabel, uploadTags } from "../zerog";
 
 const STEPS = ["Upload", "Mask", "Publish"];
 const FACET_CHIPS = ["beauty / skincare / serum", "18–24", "budget: high", "abandoned", "too expensive"];
@@ -111,14 +112,19 @@ function Mask({ onDone }: { onDone: () => void }) {
   const [reqId, setReqId] = useState(ogRequestId);
   const [chips, setChips] = useState<string[]>(FACET_CHIPS);
   const [zgNote, setZgNote] = useState("");
+  const [realReq, setRealReq] = useState(false);
+  /** Identifiers on-device masking missed and 0G caught (shown here only, never stored). */
+  const [caught, setCaught] = useState<Set<Pii>>(new Set());
   const { zg } = useLive();
+  const { update, addReceipt } = useStore();
   const ran = useRef(false);
   const order = useMemo(() => {
     const m = new Map<Pii, number>();
     let k = 0;
-    for (const msg of msgs) for (const part of msg.parts) if (typeof part !== "string") m.set(part, k++);
+    for (const msg of msgs) for (const part of msg.parts) if (typeof part !== "string" && !part.missed) m.set(part, k++);
     return m;
   }, [msgs]);
+  const missed = useMemo(() => msgs.flatMap((m) => (m.parts as readonly (string | Pii)[]).filter((x): x is Pii => typeof x !== "string" && !!x.missed)), [msgs]);
 
   useOnce(() => {
     const maskEnd = 1900 + order.size * 280 + 700;
@@ -131,12 +137,21 @@ function Mask({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     if (phase !== 3 || ran.current) return;
     ran.current = true;
+    // On-device masking has run; the identifiers it missed go to 0G as written.
     const selfText = msgs
       .filter((m) => m.role === "self")
-      .map((m) => m.parts.map((x) => (typeof x === "string" ? x : x.ph)).join(""))
+      .map((m) => m.parts.map((x) => (typeof x === "string" ? x : x.missed ? x.orig : x.ph)).join(""))
       .join("\n");
+    const simulate = (note: string) => {
+      update((s) => ({ ...s, upload: null }));
+      setCaught(new Set(missed));
+      setZgNote(note);
+    };
     if (!zg) {
-      setTimeout(() => setPhase(4), 1800);
+      setTimeout(() => {
+        simulate(missed.length ? `simulated · +${missed.length} identifier caught` : "");
+        setPhase(4);
+      }, 1800);
       return;
     }
     api
@@ -145,16 +160,20 @@ function Mask({ onDone }: { onDone: () => void }) {
         const f = r.facets;
         const m = f.mentions[0];
         setChips(
-          [f.domain_path, f.age_band, f.budget_consciousness && `budget: ${f.budget_consciousness}`, ...(m?.events ?? []).slice(0, 2), m?.price_judgement?.replace("_", " ")].filter(
+          [f.domain_path, f.age_band && band(f.age_band), f.budget_consciousness && `budget: ${f.budget_consciousness}`, ...(m?.events ?? []).slice(0, 2), m?.price_judgement?.replace("_", " ")].filter(
             (x): x is string => !!x,
           ),
         );
         setReqId(r.receipt.request_id);
+        setRealReq(true);
+        setCaught(new Set(missed.filter((x) => r.extraIdentifiers.some((id) => x.orig.includes(id.text) || id.text.includes(x.orig)))));
         setZgNote(`${r.receipt.tee_verified ? "TEE verified" : "sealed"} · ${r.receipt.model}${r.extraIdentifiers.length ? ` · +${r.extraIdentifiers.length} identifiers caught` : ""}`);
+        update((s) => ({ ...s, upload: uploadTags(r) }));
+        addReceipt({ kind: "inference", title: `upload analysis · ${teeLabel(r.receipt)}`, chain: "0g", tx: r.receipt.request_id });
       })
-      .catch(() => setZgNote("0G unavailable · simulated"))
+      .catch(() => simulate("0G unavailable · simulated"))
       .finally(() => setPhase(4));
-  }, [phase, zg, msgs]);
+  }, [phase, zg, msgs, missed, update, addReceipt]);
 
   return (
     <div className="stack">
@@ -169,6 +188,10 @@ function Mask({ onDone }: { onDone: () => void }) {
                   {m.parts.map((part, j) =>
                     typeof part === "string" ? (
                       <span key={j}>{part}</span>
+                    ) : part.missed ? (
+                      <span key={j} className={caught.has(part) ? "og-caught" : undefined} title={caught.has(part) ? "Missed on device, caught by 0G inside the TEE" : undefined}>
+                        <Scramble from={part.orig} to={part.ph} go={phase >= 4 && caught.has(part)} />
+                      </span>
                     ) : (
                       <Scramble key={j} from={part.orig} to={part.ph} go={phase >= 2} delay={(order.get(part) ?? 0) * 280} />
                     ),
@@ -193,7 +216,7 @@ function Mask({ onDone }: { onDone: () => void }) {
               </span>
             ))}
         </div>
-        {phase >= 4 && <Hash value={reqId} label="req" />}
+        {phase >= 4 && <Hash value={reqId} label="req" note={realReq ? ZG_NOTE : undefined} />}
         <Button onClick={onDone} disabled={phase < 4}>
           Continue →
         </Button>

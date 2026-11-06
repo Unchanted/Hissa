@@ -4,11 +4,13 @@
  *
  *   GET  /api/ai/models          sealed (TeeML) models currently offered by the 0G Router
  *   POST /api/ai/analyse-upload  { maskedText } -> missed identifiers, masked text, facets, 0G receipt
+ *   POST /api/ai/parse-request   { request } -> buyer's sentence as marketplace filters, 0G receipt
  *   POST /api/ai/insight-demo    { small? } -> anonymised insight report on the synthetic cohort
  *                                (small=true shows the k-anonymity refusal, no 0G call)
  */
 import { Hono } from "hono";
 import { runInsight } from "./insights.js";
+import { parseBuyerRequest } from "./request.js";
 import { ABANDONMENT_ANALYSIS_ID, ABANDONMENT_COHORT, ABANDONMENT_QUESTION, smallAbandonmentCohort } from "./synthetic-cohort.js";
 import { analyseUpload } from "./upload.js";
 import { ROUTER_URL, ZeroGError } from "./zerog.js";
@@ -35,6 +37,18 @@ export function aiRoutes() {
     if (typeof body?.maskedText !== "string") return c.json({ error: "maskedText (string) required" }, 400);
     try {
       return c.json(await analyseUpload(body.maskedText));
+    } catch (e) {
+      const err = e as ZeroGError;
+      const status = err.status >= 400 && err.status < 600 ? err.status : 502;
+      return c.json({ error: err.message, code: err.code ?? null }, status as 400);
+    }
+  });
+
+  app.post("/parse-request", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { request?: unknown } | null;
+    if (typeof body?.request !== "string") return c.json({ error: "request (string) required" }, 400);
+    try {
+      return c.json(await parseBuyerRequest(body.request));
     } catch (e) {
       const err = e as ZeroGError;
       const status = err.status >= 400 && err.status < 600 ? err.status : 502;

@@ -11,5 +11,6 @@ export {
   type InsightTheme,
 } from "./insights.js";
 export { ABANDONMENT_ANALYSIS_ID, ABANDONMENT_COHORT, ABANDONMENT_QUESTION, smallAbandonmentCohort } from "./synthetic-cohort.js";
+export { parseBuyerRequest, type BuyerFilters, type BuyerRequest } from "./request.js";
 export { analyseUpload, type UploadAnalysis, type Facets, type ExtraIdentifier } from "./upload.js";
 export { sealedJson, ZeroGError, CHAT_MODELS, ROUTER_URL, type InferenceReceipt } from "./zerog.js";

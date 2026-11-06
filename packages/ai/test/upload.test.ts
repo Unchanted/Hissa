@@ -197,3 +197,26 @@ test("the upload call itself is sealed", async (t) => {
   assert.equal(calls[0]!.body.verify_tee, true);
   assert.equal(calls[0]!.body.messages[1].content, CHAT);
 });
+
+test("numbers new placeholders after the ones already in the text", async (t) => {
+  modelSays(t, {
+    extra_identifiers: [{ text: "Kavya Iyer", type: "PERSON" }],
+    facets: { domain_path: "beauty/skincare", mentions: [] },
+  });
+  const out = await analyseUpload("I'm [PERSON_1], my friend [PERSON_2] and Dr. Kavya Iyer agree.");
+  assert.equal(out.maskedText, "I'm [PERSON_1], my friend [PERSON_2] and Dr. [PERSON_3] agree.");
+});
+
+test("treats coarse tags like [AGE 18–24] as placeholders, never as identifiers", async (t) => {
+  modelSays(t, {
+    extra_identifiers: [
+      { text: "IN-west", type: "PLACE" },
+      { text: "18–24", type: "OTHER" },
+    ],
+    facets: { domain_path: "beauty/skincare", mentions: [{ subject: "serum", reasons: ["[REGION IN-west] price"] }] },
+  });
+  const text = "I'm [AGE 18–24] from [REGION IN-west].";
+  const out = await analyseUpload(text);
+  assert.deepEqual(out.extraIdentifiers, []);
+  assert.equal(out.maskedText, text);
+});

@@ -6,6 +6,7 @@ import { evmHash, hbar, hederaTxId, isoWeek, ogRequestId, sleep } from "../lib";
 import { useStore, type State } from "../store";
 import { ApiError, api, useLive } from "../live";
 import { TxModal, type RunTx } from "../components/TxModal";
+import { ZG_NOTE, teeLabel, toFilters } from "../zerog";
 
 type CardState = "locked" | "buying" | "owned";
 type Analysis = { themes: { name: string; share_pct: number }[]; bucket: string; reqIds: string[]; tee: boolean; simulated: boolean };
@@ -16,7 +17,9 @@ function marketFor(s: State): MarketRecord[] {
   const others = OTHER_RECORDS.map((r, i) => ({ ...r, key: `0x${(i + 7).toString(16).repeat(64)}`, week }));
   const l = s.listing;
   if (!l || !l.live || !l.consentSale) return others;
-  return [{ ...PRIYA_RECORD, listingId: l.listingId, key: l.entityKey, week, contactOk: l.consentContact }, ...others];
+  // Public tags come from the seller's real 0G analysis when there was one.
+  const tags = s.upload && { signals: s.upload.signals.length ? s.upload.signals : PRIYA_RECORD.signals, events: s.upload.events.length ? s.upload.events : PRIYA_RECORD.events };
+  return [{ ...PRIYA_RECORD, ...tags, listingId: l.listingId, key: l.entityKey, week, contactOk: l.consentContact }, ...others];
 }
 
 const FILTER_LABEL: Record<keyof Filters, string> = { domain: "domain", age: "age", region: "region", event: "behaviour" };
@@ -25,7 +28,7 @@ export function Agent() {
   const { state, update, addReceipt } = useStore();
   const [q, setQ] = useState(REQUEST_EXAMPLES[0]!);
   const [budget, setBudget] = useState(AGENT_DEFAULTS.budget);
-  const [filters, setFilters] = useState<{ f: Filters; req: string } | null>(null);
+  const [filters, setFilters] = useState<{ f: Filters; req: string; real: boolean } | null>(null);
   const [msg, setMsg] = useState(CONTACT_MESSAGE);
   const [busy, setBusy] = useState(false);
   const [cards, setCards] = useState<Card[]>(() => state.bought.map((b) => ({ ...b, state: "owned" as const })));
@@ -51,11 +54,24 @@ export function Agent() {
     let seq = state.hcsSeq;
     const have = new Set(state.bought.map((b) => b.listingId));
 
-    p("0g · turn request into filters", "og");
-    await sleep(1100);
-    const f = parseRequest(q);
-    const req = ogRequestId();
-    setFilters({ f, req });
+    p("0g · turn request into filters · sealed in TEE", "og");
+    let parsed: { f: Filters; req: string; real: boolean } | null = null;
+    if (zg) {
+      try {
+        const r = await api.parseRequest(q);
+        parsed = { f: toFilters(q, r.filters), req: r.receipt.request_id, real: true };
+        p(`filters ready · ${teeLabel(r.receipt)} · ${r.receipt.latency_ms} ms`, "og");
+        addReceipt({ kind: "inference", title: `request → filters · ${teeLabel(r.receipt)}`, chain: "0g", tx: r.receipt.request_id });
+      } catch (e) {
+        p(`0G unavailable · ${(e as Error).message} · keyword filters`, "warn");
+      }
+    }
+    if (!parsed) {
+      await sleep(1100);
+      parsed = { f: parseRequest(q), req: ogRequestId(), real: false };
+    }
+    const f = parsed.f;
+    setFilters(parsed);
     const market = marketFor(state).filter((r) => matches(r, f));
     p(`arkiv.query dm.listing · consent_sale=true ∧ domain="${f.domain}" → ${market.length} listings`, "arkiv");
     await sleep(800);
@@ -133,9 +149,10 @@ export function Agent() {
       if (zg) {
         try {
           const r = await api.insight();
-          if (r.status === "ok")
-            a = { themes: r.themes, bucket: r.cohort_bucket, reqIds: r.receipts.map((x) => x.request_id), tee: r.receipts.every((x) => x.tee_verified !== false), simulated: false };
-          else p(`refused · ${r.reason}`, "warn");
+          if (r.status === "ok") {
+            a = { themes: r.themes, bucket: r.cohort_bucket, reqIds: r.receipts.map((x) => x.request_id), tee: r.receipts.every((x) => x.tee_verified === true), simulated: false };
+            addReceipt({ kind: "inference", title: `cohort report · ${r.receipts.length} sealed calls${a.tee ? " · TEE ✓" : ""}`, chain: "0g", tx: r.receipts[0]?.request_id ?? "" });
+          } else p(`refused · ${r.reason}`, "warn");
         } catch (e) {
           p(`0G unavailable · ${(e as Error).message} · simulated`, "warn");
         }
@@ -270,7 +287,8 @@ export function Agent() {
                   {FILTER_LABEL[k]}: {filters.f[k]}
                 </span>
               ))}
-            <Hash value={filters.req} label="req" />
+            <Hash value={filters.req} label="req" note={filters.real ? ZG_NOTE : undefined} />
+            {!filters.real && <Chip>simulated</Chip>}
           </div>
         )}
       </Panel>
@@ -345,7 +363,7 @@ export function Agent() {
                 </div>
                 <div className="row gap-s wrap">
                   {analysis.reqIds.slice(0, 2).map((id) => (
-                    <Hash key={id} value={id} head={10} tail={4} label="req" />
+                    <Hash key={id} value={id} head={10} tail={4} label="req" note={analysis.simulated ? undefined : ZG_NOTE} />
                   ))}
                   {analysis.reqIds.length > 2 && <small className="muted mono">+{analysis.reqIds.length - 2} more</small>}
                 </div>

@@ -25,6 +25,7 @@ export type UploadAnalysis = {
   };
   receipt: ZgReceipt;
 };
+export type RequestFilters = { filters: { domain: string; age?: string; region?: string; event?: string }; receipt: ZgReceipt };
 export type InsightResult =
   | { status: "ok"; cohort_bucket: string; themes: { name: string; share_pct: number }[]; receipts: ZgReceipt[]; privacy: { kMin: number; epsilon: number } }
   | { status: "refused"; reason: string };
@@ -62,6 +63,8 @@ export const api = {
   balances: () => call<Balances>("/api/balances"),
   analyseUpload: (maskedText: string) =>
     call<UploadAnalysis>("/api/ai/analyse-upload", { method: "POST", body: JSON.stringify({ maskedText }), signal: AbortSignal.timeout(45000) }),
+  parseRequest: (request: string) =>
+    call<RequestFilters>("/api/ai/parse-request", { method: "POST", body: JSON.stringify({ request }), signal: AbortSignal.timeout(20000) }),
   insight: () => call<InsightResult>("/api/ai/insight-demo", { method: "POST", body: "{}", signal: AbortSignal.timeout(60000) }),
 };
 

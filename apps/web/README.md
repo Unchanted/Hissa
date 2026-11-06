@@ -3,7 +3,8 @@
 *Your hissa of every sale.* Hissa is Hindi for “share”.
 
 A clickable walkthrough of the whole product. Hedera payments are real when the demo
-API runs (see below); Arkiv and 0G are still simulated in the browser.
+API runs (see below), and 0G inference is real when the API also has `ZG_API_KEY`;
+Arkiv is still simulated in the browser.
 
 ```bash
 # terminal 1 — demo API, real Hedera testnet payments (repo root, needs .env)
@@ -23,8 +24,14 @@ to HashScan, and the header shows live balances from the mirror node. Without th
 the app shows `SIMULATED` and fakes the same flow; if the API drops mid-demo, payments
 fall back to simulated and say so in the agent log.
 
-Still simulated in both modes: Arkiv writes (lane B), 0G inference (lane C), the
-Telegram bot. Listings and consent live in the API's memory until Arkiv is wired in, so
+**0G Private Computer.** With `ZG_API_KEY` in `.env`, three steps are sealed (TEE) 0G
+calls through the demo API: the seller's upload analysis (facets become the listing's
+public tags, and 0G catches the name on-device masking missed, shown in purple), the
+buyer's request → filters, and the cohort report. Each call's request ID shows on the page
+and on the Public Ledger as a `0G TEE` row. Without the key, or if 0G fails, each step says
+"simulated" and the ledger gets no 0G rows.
+
+Still simulated in both modes: Arkiv writes (lane B), the Telegram bot. Listings and consent live in the API's memory until Arkiv is wired in, so
 restarting the API forgets Priya's listing — click ↺ and publish again.
 
 | Account | Role |

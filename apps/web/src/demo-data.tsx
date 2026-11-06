@@ -1,10 +1,11 @@
 /** Synthetic demo content. No real person or real chat export is used. */
 
-export type Pii = { orig: string; ph: string; kind: string };
+/** `missed`: on-device masking leaves it; 0G Private Computer catches it (see views/Seller.tsx). */
+export type Pii = { orig: string; ph: string; kind: string; missed?: boolean };
 export type Part = string | Pii;
 export type Message = { role: "self" | "assistant" | "other"; parts: Part[] };
 
-const p = (orig: string, ph: string, kind: string): Pii => ({ orig, ph, kind });
+const p = (orig: string, ph: string, kind: string, missed?: boolean): Pii => ({ orig, ph, kind, ...(missed ? { missed } : {}) });
 
 export const SAMPLE_EXPORT = {
   file: "chatgpt-export-2026-11-06.zip",
@@ -20,7 +21,9 @@ export const SAMPLE_EXPORT = {
         p("22", "[AGE 18–24]", "age"),
         ", final-year student in ",
         p("Andheri West", "[REGION IN-west]", "location"),
-        ". Been on the Minimalist 10% niacinamide serum for 2 weeks and honestly see zero difference.",
+        ". Been on the Minimalist 10% niacinamide serum ",
+        p("Dr. Kavya Iyer", "[PERSON_3]", "name", true),
+        " suggested for 2 weeks and honestly see zero difference.",
       ],
     },
     {

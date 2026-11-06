@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { evmHash, hederaTxId } from "./lib";
 import { ACCOUNTS } from "./config";
 import type { MarketRecord } from "./demo-data";
+import type { UploadTags } from "./zerog";
 
 export type Listing = {
   listingId: string;
@@ -15,12 +16,12 @@ export type Listing = {
   live: boolean;
 };
 
-export type ReceiptKind = "listing" | "consent" | "revoke" | "sale" | "contact" | "payout";
+export type ReceiptKind = "listing" | "consent" | "revoke" | "sale" | "contact" | "payout" | "inference";
 export type Receipt = {
   id: string;
   kind: ReceiptKind;
   title: string;
-  chain: "arkiv" | "hedera";
+  chain: "arkiv" | "hedera" | "0g";
   tx: string;
   amount?: number;
   at: number;
@@ -32,6 +33,8 @@ export type Contact = { listingId: string; paymentTx: string; href?: string; mes
 
 export type State = {
   listing: Listing | null;
+  /** Tags from the seller's real 0G analysis; null when it was simulated. */
+  upload: UploadTags | null;
   receipts: Receipt[];
   earnings: { sales: number; contacts: number; paid: number };
   spent: number;
@@ -52,6 +55,7 @@ function seedReceipts(): Receipt[] {
 
 const initial = (): State => ({
   listing: null,
+  upload: null,
   receipts: seedReceipts(),
   earnings: { sales: 0, contacts: 0, paid: 0 },
   spent: 0,
