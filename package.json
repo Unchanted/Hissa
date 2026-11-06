@@ -6,6 +6,8 @@
     "node": ">=20"
   },
   "scripts": {
+    "arkiv:setup": "node packages/arkiv/scripts/setup.mjs",
+    "test:arkiv": "npm --prefix packages/arkiv test",
     "hedera:setup": "tsx packages/pay/scripts/setup.ts",
     "hedera:server": "tsx apps/server/src/pay-demo.ts",
     "hedera:agent": "tsx apps/agent/src/index.ts",

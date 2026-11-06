@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Hash, PageHead, Panel, SponsorTag } from "../components/ui";
 import { ACCOUNTS } from "../config";
 import { ago, hbar, short } from "../lib";
-import { useStore, type ReceiptKind } from "../store";
+import { api, useLive } from "../live";
+import { useStore, type Receipt, type ReceiptKind } from "../store";
 
 const KIND_LABEL: Record<ReceiptKind, string> = {
   listing: "LISTING",
@@ -16,12 +17,26 @@ const KIND_LABEL: Record<ReceiptKind, string> = {
 /** Public audit page: anyone can read it. No names, no handles — listing IDs and transactions only. */
 export function Ledger() {
   const { state } = useStore();
-  const [, tick] = useState(0);
+  const { live, arkivConfig } = useLive();
+  const [liveRows, setLiveRows] = useState<Receipt[]>([]);
+  const [error, setError] = useState("");
   useEffect(() => {
-    const t = setInterval(() => tick((x) => x + 1), 15000);
-    return () => clearInterval(t);
-  }, []);
-  const rows = [...state.receipts].sort((a, b) => b.at - a.at);
+    if (!live) return;
+    let active = true;
+    const load = () => api.receipts().then(({ items }) => {
+      if (!active) return;
+      setLiveRows(items.map((item) => ({ ...item, at: typeof item.at === "number" ? item.at : new Date(item.at).getTime() })));
+      setError("");
+    }, (cause: Error) => {
+      if (!active) return;
+      setLiveRows([]);
+      setError(cause.message);
+    });
+    void load();
+    const timer = setInterval(() => void load(), 15000);
+    return () => { active = false; clearInterval(timer); };
+  }, [live]);
+  const rows = [...(live ? liveRows : state.receipts)].sort((a, b) => b.at - a.at);
 
   return (
     <div className="page">
@@ -40,10 +55,11 @@ export function Ledger() {
             <SponsorTag who="ARKIV" />
             <SponsorTag who="HEDERA" />
             <i className="pulse" />
-            <small className="mono muted">writer {short(ACCOUNTS.arkivWriter)}</small>
+            <small className="mono muted">writer {short(arkivConfig?.writer ?? ACCOUNTS.arkivWriter)}</small>
           </span>
         }
       >
+        {error && <p className="muted" role="alert">Could not load chain receipts: {error}</p>}
         <div className="receipts">
           {rows.map((x) => (
             <div key={x.id} className={`receipt k-${x.kind}`}>

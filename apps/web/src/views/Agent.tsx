@@ -4,11 +4,11 @@ import { CONTACT_MESSAGE, SIM_THEMES, OTHER_RECORDS, PRIYA_RECORD, REQUEST_EXAMP
 import { ACCOUNTS, AGENT_DEFAULTS, PRICES, SELLER_SHARE } from "../config";
 import { evmHash, hbar, hederaTxId, isoWeek, ogRequestId, sleep } from "../lib";
 import { useStore, type State } from "../store";
-import { ApiError, api, useLive } from "../live";
+import { api, useLive, type PublicListing } from "../live";
 import { TxModal, type RunTx } from "../components/TxModal";
 
 type CardState = "locked" | "buying" | "owned";
-type Analysis = { themes: { name: string; share_pct: number }[]; bucket: string; reqIds: string[]; tee: boolean; simulated: boolean };
+type Analysis = { themes: { name: string; share_pct: number }[]; bucket: string; reqIds: string[]; tee: boolean; simulated: boolean; synthetic: true };
 type Card = MarketRecord & { state: CardState; paymentTx?: string; href?: string };
 
 function marketFor(s: State): MarketRecord[] {
@@ -44,6 +44,7 @@ export function Agent() {
 
   async function find() {
     if (busy) return;
+    if (!live) { log.clear(); log.push("Marketplace API unavailable; no discovery or payment was attempted.", "err"); return; }
     setBusy(true);
     log.clear();
     const p = log.push;
@@ -56,7 +57,28 @@ export function Agent() {
     const f = parseRequest(q);
     const req = ogRequestId();
     setFilters({ f, req });
-    const market = marketFor(state).filter((r) => matches(r, f));
+    let market: MarketRecord[];
+    if (live) {
+      try {
+        const rows: PublicListing[] = [];
+        let cursor: string | undefined;
+        for (let page = 0; page < 20; page += 1) {
+          const result = await api.listings({ domain: f.domain, region: f.region, cursor });
+          rows.push(...result.items);
+          cursor = result.next;
+          if (!cursor) break;
+        }
+        market = rows.map((r) => ({ key: r.key, listingId: r.listingId, source: r.source, region: r.region, week: r.week, contactOk: r.contactOk, signals: r.signals, events: r.events, excerpt: r.excerpt, priya: r.priya }));
+        if (cursor) throw new Error("Arkiv discovery exceeds 20 pages; narrow the request.");
+      } catch (cause) {
+        p(`Arkiv discovery failed · ${(cause as Error).message}`, "err");
+        setCards([]);
+        setBusy(false);
+        return;
+      }
+    } else {
+      market = marketFor(state).filter((r) => matches(r, f));
+    }
     p(`arkiv.query dm.listing · consent_sale=true ∧ domain="${f.domain}" → ${market.length} listings`, "arkiv");
     await sleep(800);
     if (!market.length) {
@@ -69,7 +91,7 @@ export function Agent() {
     setCards([
       ...market.map((r) => {
         const had = state.bought.find((b) => b.listingId === r.listingId);
-        return { ...r, state: (had ? "owned" : "locked") as CardState, paymentTx: had?.paymentTx, href: had?.href };
+        return { ...r, ...(had ?? {}), state: (had ? "owned" : "locked") as CardState, paymentTx: had?.paymentTx, href: had?.href };
       }),
       ...keep.map((b) => ({ ...b, state: "owned" as const })),
     ]);
@@ -87,19 +109,17 @@ export function Agent() {
       p(`GET /records/${r.listingId} ← 402 · pay ${PRICES.record} ℏ`, "pay");
       let tx: string;
       let href: string | undefined;
+      let delivered = r;
       if (live) {
         try {
           const paid = await api.buy(r.listingId, budget - spent);
           tx = paid.txId;
           href = paid.hashscan;
-        } catch (e) {
-          if (e instanceof ApiError) {
-            p(`← ${e.status} · ${e.message} · not charged`, "err");
-            setCards((cs) => cs.map((c) => (c.listingId === r.listingId ? { ...c, state: "locked" } : c)));
-            continue;
-          }
-          p("API unreachable · simulated", "warn");
-          tx = hederaTxId(ACCOUNTS.agent);
+          delivered = paid.record ? { ...r, ...paid.record } : { ...r, signals: [], events: [], excerpt: "" };
+        } catch (cause) {
+          p(`Purchase failed · ${(cause as Error).message} · check the ledger before retrying`, "err");
+          setCards((cs) => cs.map((c) => (c.listingId === r.listingId ? { ...c, state: "locked" } : c)));
+          continue;
         }
       } else {
         await sleep(950);
@@ -113,13 +133,13 @@ export function Agent() {
         </>,
         "ok",
       );
-      setCards((cs) => cs.map((c) => (c.listingId === r.listingId ? { ...c, state: "owned", paymentTx: tx, href } : c)));
+      setCards((cs) => cs.map((c) => (c.listingId === r.listingId ? { ...delivered, state: "owned", paymentTx: tx, href } : c)));
       update((s) => ({
         ...s,
         spent: s.spent + PRICES.record,
         hcsSeq: seq,
-        bought: [...s.bought, { ...r, paymentTx: tx, href }],
-        earnings: r.priya ? { ...s.earnings, sales: s.earnings.sales + PRICES.record * SELLER_SHARE } : s.earnings,
+        bought: [...s.bought, { ...delivered, paymentTx: tx, href }],
+        earnings: delivered.priya ? { ...s.earnings, sales: s.earnings.sales + PRICES.record * SELLER_SHARE } : s.earnings,
       }));
       addReceipt({ kind: "sale", title: `${r.listingId} · silver`, chain: "hedera", tx, amount: PRICES.record, href });
       await sleep(300);
@@ -128,13 +148,13 @@ export function Agent() {
 
     // 04 · private analysis inside a 0G TEE (anonymised: k ≥ 50, noised, no quotes)
     if (state.bought.length + toBuy.length > 0 && log.alive.current) {
-      p("0g · private analysis in TEE · consented cohort, k ≥ 50, noised", "og");
+      p("0g · synthetic insight demo · not an Arkiv cohort", "og");
       let a: Analysis | null = null;
       if (zg) {
         try {
           const r = await api.insight();
           if (r.status === "ok")
-            a = { themes: r.themes, bucket: r.cohort_bucket, reqIds: r.receipts.map((x) => x.request_id), tee: r.receipts.every((x) => x.tee_verified !== false), simulated: false };
+            a = { themes: r.themes, bucket: r.cohort_bucket, reqIds: r.receipts.map((x) => x.request_id), tee: r.receipts.every((x) => x.tee_verified !== false), simulated: false, synthetic: true };
           else p(`refused · ${r.reason}`, "warn");
         } catch (e) {
           p(`0G unavailable · ${(e as Error).message} · simulated`, "warn");
@@ -142,7 +162,7 @@ export function Agent() {
       }
       if (!a) {
         await sleep(1600);
-        a = { themes: SIM_THEMES, bucket: "50–99", reqIds: [ogRequestId(), ogRequestId(), ogRequestId()], tee: false, simulated: true };
+        a = { themes: SIM_THEMES, bucket: "50–99", reqIds: [ogRequestId(), ogRequestId(), ogRequestId()], tee: false, simulated: true, synthetic: true };
       }
       setAnalysis(a);
       p(`report ready · ${a.reqIds.length} sealed 0G calls`, "og");
@@ -164,6 +184,7 @@ export function Agent() {
   }
 
   async function send() {
+    if (!live) { log.push("Marketplace API unavailable; no message payment was attempted.", "err"); return; }
     if (busy) return;
     setBusy(true);
     const p = log.push;
@@ -184,12 +205,8 @@ export function Agent() {
           tx = paid.txId;
           href = paid.hashscan;
         } catch (e) {
-          if (e instanceof ApiError) {
-            p(`← ${e.status} · ${e.message} · not charged`, "err");
-            continue;
-          }
-          p("API unreachable · simulated", "warn");
-          tx = hederaTxId(ACCOUNTS.agent);
+          p(`Message payment failed · ${(e as Error).message} · check the ledger before retrying`, "err");
+          continue;
         }
       } else {
         const l = state.listing;
@@ -332,6 +349,7 @@ export function Agent() {
                   <Chip tone="gold">cohort {analysis.bucket}</Chip>
                   <Chip>k ≥ 50 · noised</Chip>
                   {analysis.tee && <Chip tone="ok">TEE</Chip>}
+                  {analysis.synthetic && <Chip>synthetic demo · not from Arkiv</Chip>}
                   {analysis.simulated && <Chip>simulated</Chip>}
                 </div>
                 <div className="themes-mini">

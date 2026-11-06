@@ -1,13 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { evmHash, hederaTxId } from "./lib";
-import { ACCOUNTS } from "./config";
 import type { MarketRecord } from "./demo-data";
 
 export type Listing = {
   listingId: string;
   entityKey: string;
   txHash: string;
-  block: number;
+  expiresAt: string;
+  version: number;
   consentSale: boolean;
   consentContact: boolean;
   expiryDays: number;
@@ -26,6 +25,7 @@ export type Receipt = {
   at: number;
   /** HashScan link when the payment is real. */
   href?: string;
+  arkivEntityKey?: string;
 };
 
 export type Contact = { listingId: string; paymentTx: string; href?: string; message: string; reply: "pending" | "interested" | "ignored"; at: number };
@@ -40,19 +40,9 @@ export type State = {
   contact: Contact | null;
 };
 
-const HOUR = 3600_000;
-function seedReceipts(): Receipt[] {
-  const t = Date.now();
-  return [
-    { id: "s1", kind: "sale", title: "lst_7f3a · gold", chain: "arkiv", tx: evmHash(), amount: 2, at: t - 4.1 * HOUR },
-    { id: "s2", kind: "payout", title: "Batch #41 · 37 sellers", chain: "hedera", tx: hederaTxId(ACCOUNTS.treasury), amount: 18.4, at: t - 3 * HOUR },
-    { id: "s3", kind: "sale", title: "lst_91c2 · silver", chain: "arkiv", tx: evmHash(), amount: 1, at: t - 0.7 * HOUR },
-  ];
-}
-
 const initial = (): State => ({
   listing: null,
-  receipts: seedReceipts(),
+  receipts: [],
   earnings: { sales: 0, contacts: 0, paid: 0 },
   spent: 0,
   hcsSeq: 13,
@@ -60,7 +50,7 @@ const initial = (): State => ({
   contact: null,
 });
 
-const KEY = "hissa.demo.v3";
+const KEY = "hissa.arkiv.v4";
 function load(): State {
   try {
     const raw = sessionStorage.getItem(KEY);

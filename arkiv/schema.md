@@ -1,5 +1,7 @@
 # Arkiv entity schemas
 
+The integrated single-seller app also uses `dm.app_receipt.v1`: indexed `kind`, `listing_id`, `payment_tx`; unindexed `amount` and `at` (`u64`), plus `sealed_details` (`bytes`). It records listing/consent/revoke activity and record/contact/payout payments; private payout attribution is sealed. The payment transaction ID provides receipt deduplication. `dm.payout_intent.v1` has indexed `create_tx` and unindexed `sealed_lines`, reserving a payout before its external side effect. Both are readonly with permissionless extension disabled and maximum bounded lifetime. These are the current app's audit/earnings source; the original sale/insight/payout schemas below remain available for the separate planned paid-insights flow.
+
 These four named schemas follow [work-plan §3.2](../docs/work-plan.md) and [architecture §2.1](../docs/architecture.md). The names are SDK schema tags: they separate app entity kinds in SDK queries, but do not authenticate writes or limit public reads.
 
 | Schema | Column | SDK type | Indexed |
