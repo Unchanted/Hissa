@@ -19,6 +19,27 @@ Hissa is a user-owned data marketplace that connects the two sides.
 - **Arkiv:** the only database. Encrypted listings, consent flags, expiry and a public audit trail.
 - **Hedera:** autonomous x402 payments by AI agents, an HCS payment log, and batch payouts to users.
 
+## Live demo
+
+- **Frontend (Vercel):** https://hissa-peach.vercel.app
+- **API:** the API (Hedera x402 + Arkiv + 0G) runs as a long-lived Node server (it holds an Arkiv write journal on disk, an in-memory insight job map, and self-calls its own paid routes), so it is not on Vercel. For the demo it runs on the team machine behind an HTTPS tunnel; open the frontend with `?api=<tunnel URL>` (remembered in the browser; `?api=reset` clears it). Without a reachable API the app shows "Marketplace API unavailable" instead of faking payments.
+- **Run locally:** `npm ci && npm --prefix apps/web ci`, `npm run arkiv:setup`, fill `.env` (see `.env.example`; `ALLOWED_ORIGINS` and `HOST` control which web origins may call the API and which interface it binds), then `npm run demo:api` (port 4021) and `npm run demo:web` (port 5173).
+
+**Sponsor tracks**
+
+| Track | What we use it for |
+| --- | --- |
+| 0G Private Computer | Seller classification, buyer request/idea to filters, anonymised insight reports (see [0G section](#0g-private-computer-classification-and-analytics-in-a-tee-working-mainnet-router)) |
+| Arkiv | Encrypted listings, consent, revoke, receipts; the only database (see [Arkiv](#arkiv)) |
+| Hedera | x402 agent payments, HCS log, scheduled payouts (see [Hedera](#hedera-x402-payments-by-an-autonomous-agent-working-testnet)) |
+
+**Two buyer products:** Validate an idea (anonymised analytics, k >= 50, 2 ℏ, 80% to contributors) and Buy training data (pseudonymised records, 1 ℏ each).
+
+**Team**
+- Om Dwivedi (0G), contact: TODO
+- Om Lanke (Arkiv), contact: TODO
+- Allen Chu (Hedera/x402, web), contact: TODO
+
 ## Docs
 
 - [Current architecture and product scope](docs/architecture.md)
