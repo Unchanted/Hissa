@@ -139,6 +139,8 @@ For the hackathon, eligibility and consent are checked when an analysis starts. 
 
 ## 5. Facet envelope (extracted from the data itself)
 
+Supported exports, the common conversation format and the rule that only the uploader's own messages become data are in [data-sources.md](data-sources.md).
+
 Chats are about anything, so the extracted record is domain-agnostic. Nothing is skincare-specific; skincare is just one value that `domain` and `subject` can take.
 
 ```
