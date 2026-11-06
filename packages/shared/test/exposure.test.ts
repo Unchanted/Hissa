@@ -87,3 +87,27 @@ describe('exposureForPlan', () => {
     expect(exposureForPlan(plan, null, opts).kind).toBe('unknown');
   });
 });
+
+import { PlanDraft, parseUnitsExact, redactionProblem } from '../src/hygiene/draft.js';
+
+describe('plan draft (acceptance #5)', () => {
+  it('parses decimal amounts without floats', () => {
+    expect(parseUnitsExact('800', 6)).toBe(800_000_000n);
+    expect(parseUnitsExact('0.000001', 6)).toBe(1n);
+    expect(parseUnitsExact('12.5', 6)).toBe(12_500_000n);
+    expect(() => parseUnitsExact('1.0000001', 6)).toThrow();
+    expect(() => parseUnitsExact('-1', 6)).toThrow();
+  });
+  it('rejects hallucinated or extra fields', () => {
+    const ok = { sourceAlias: 'A', destinationAlias: 'B', token: 'USDC', fundingAmount: '800', repaymentAmount: '500' };
+    expect(PlanDraft.safeParse(ok).success).toBe(true);
+    expect(PlanDraft.safeParse({ ...ok, destinationAlias: '0xabc' }).success).toBe(false);
+    expect(PlanDraft.safeParse({ ...ok, to: '0x1234' }).success).toBe(false);
+    expect(PlanDraft.safeParse({ ...ok, token: 'DAI' }).success).toBe(false);
+    expect(PlanDraft.safeParse({ ...ok, fundingAmount: 800 }).success).toBe(false);
+  });
+  it('blocks literal addresses from leaving the browser', () => {
+    expect(redactionProblem('Move 800 USDC to my repayment wallet B to repay 500 USDC')).toBeNull();
+    expect(redactionProblem('send 800 to 0x70997970C51812dc3A010C7d01b50e0d17dc79C8')).not.toBeNull();
+  });
+});
