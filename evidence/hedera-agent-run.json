@@ -1,0 +1,74 @@
+[
+  {
+    "at": "2026-11-06T17:15:19.827Z",
+    "network": "hedera:testnet",
+    "facilitator": "Blocky402",
+    "agent": "0.0.11342909",
+    "topic": "0.0.11342910",
+    "limits_hbar": {
+      "budget": "10",
+      "perPurchase": "5",
+      "daily": "25"
+    },
+    "spent_hbar": "6",
+    "payments": [
+      {
+        "kind": "record_purchase",
+        "resource": "http://localhost:4021/api/records/lst_7f3a",
+        "amount_hbar": "2",
+        "payment_tx": "0.0.7162784@1793985302.813252518",
+        "payment_hashscan": "https://hashscan.io/testnet/transaction/0.0.7162784-1793985302-813252518",
+        "mirror_check": {
+          "ok": true,
+          "result": "SUCCESS",
+          "consensusTimestamp": "1793985307.853078793",
+          "receivedTinybars": "200000000"
+        },
+        "hcs": {
+          "topic": "0.0.11342910",
+          "sequence": "1",
+          "tx": "0.0.11342909@1793985302.229339784",
+          "hashscan": "https://hashscan.io/testnet/transaction/0.0.11342909-1793985302-229339784"
+        }
+      },
+      {
+        "kind": "record_purchase",
+        "resource": "http://localhost:4021/api/records/lst_91c2",
+        "amount_hbar": "1",
+        "payment_tx": "0.0.7162784@1793985304.420859908",
+        "payment_hashscan": "https://hashscan.io/testnet/transaction/0.0.7162784-1793985304-420859908",
+        "mirror_check": {
+          "ok": true,
+          "result": "SUCCESS",
+          "consensusTimestamp": "1793985311.311468741",
+          "receivedTinybars": "100000000"
+        },
+        "hcs": {
+          "topic": "0.0.11342910",
+          "sequence": "2",
+          "tx": "0.0.11342909@1793985307.857536134",
+          "hashscan": "https://hashscan.io/testnet/transaction/0.0.11342909-1793985307-857536134"
+        }
+      },
+      {
+        "kind": "insight_purchase",
+        "resource": "http://localhost:4021/api/insights/abandonment-drivers",
+        "amount_hbar": "3",
+        "payment_tx": "0.0.7162784@1793985310.661395447",
+        "payment_hashscan": "https://hashscan.io/testnet/transaction/0.0.7162784-1793985310-661395447",
+        "mirror_check": {
+          "ok": true,
+          "result": "SUCCESS",
+          "consensusTimestamp": "1793985314.744719104",
+          "receivedTinybars": "300000000"
+        },
+        "hcs": {
+          "topic": "0.0.11342910",
+          "sequence": "3",
+          "tx": "0.0.11342909@1793985313.472294180",
+          "hashscan": "https://hashscan.io/testnet/transaction/0.0.11342909-1793985313-472294180"
+        }
+      }
+    ]
+  }
+]
