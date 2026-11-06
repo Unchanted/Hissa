@@ -4,8 +4,14 @@ import {
   createWalletClient,
   ExpirationTime,
 } from "@arkiv-network/sdk";
+import type { Schema } from "@arkiv-network/sdk";
 import { rabdi } from "@arkiv-network/sdk/chains";
-import { MAX_ENTITY_BYTES, MAX_STRING_BYTES, bytes, str, u64 } from "@arkiv-network/sdk/schema";
+import type { CreationFlags, Expiry } from "@arkiv-network/sdk/entity";
+import { NoEntityFoundError } from "@arkiv-network/sdk";
+import {
+  MAX_ENTITY_BYTES, MAX_STRING_BYTES, addr, bool, bytes, dec, i32, isArkivValue, isSchema,
+  key, str, toValue, u256, u64,
+} from "@arkiv-network/sdk/schema";
 import { getGasPrice } from "viem/actions";
 import { privateKeyToAccount } from "viem/accounts";
 import { ENTITY_EVENTS_ABI } from "@arkiv-network/sdk/entity";
@@ -26,7 +32,9 @@ import { ArkivReader } from "./reader.ts";
 import { listingSchema } from "./schemas.ts";
 import { SerialQueue } from "./serial-queue.ts";
 import { estimateWithRequest } from "./estimate.ts";
-import { JournalError, PublicationJournal, type JournalEntry, type JournalPayload } from "./journal.ts";
+import {
+  JournalError, PublicationJournal, type JournalEntry, type JournalPayload, type OperationJournalPayload,
+} from "./journal.ts";
 
 const CHAIN_ID = 7_794_095;
 const MAX_EXPIRY_SECONDS = 182 * 24 * 60 * 60;
@@ -183,6 +191,116 @@ function valuesOf(listing: NewListing) {
   });
 }
 
+type ArkivValue = ReturnType<typeof toValue>;
+
+function constructValue(type: string, value: unknown): ArkivValue {
+  switch (type) {
+    case "addr": return addr(value as string);
+    case "bool": return bool(value as boolean);
+    case "bytes": return bytes(value as Hex | Uint8Array);
+    case "dec": return dec(value as string | number | bigint);
+    case "i32": return i32(value as number | bigint);
+    case "key": return key(value as Hex | Uint8Array);
+    case "str": return str(value as string);
+    case "u256": return u256(value as string | number | bigint);
+    case "u64": return u64(value as string | number | bigint);
+    default: fail("invalid");
+  }
+}
+
+function normalizeValues(schema: Schema, values: Record<string, unknown>): Readonly<Record<string, ArkivValue>> {
+  if (!isSchema(schema) || !record(values) || Array.isArray(values)) fail("invalid");
+  const result: Record<string, ArkivValue> = {};
+  for (const name of Reflect.ownKeys(values)) {
+    if (typeof name !== "string") fail("invalid");
+    const value = values[name];
+    if (value === undefined) continue;
+    const column = schema.columns[name];
+    if (!column) fail("invalid");
+    const normalized = isArkivValue(value) ? toValue(value) : constructValue(column.type, value);
+    if (normalized.type !== column.type) fail("invalid");
+    result[name] = normalized;
+  }
+  return Object.freeze(result);
+}
+
+function normalizeCreateOptions(options: { expiration: Expiry; flags: CreationFlags }) {
+  if (!record(options) || Object.keys(options).some((key) => key !== "expiration" && key !== "flags") ||
+    !record(options.expiration) || !record(options.flags)) fail("invalid");
+  const { minLifetime, expiresAt } = options.expiration as Record<string, unknown>;
+  if (typeof minLifetime !== "bigint" || !(typeof expiresAt === "bigint" || expiresAt instanceof Date)) fail("invalid");
+  const flags = options.flags as Record<string, unknown>;
+  if (Object.keys(flags).some((key) => key !== "readonly" && key !== "permissionlessExtension") ||
+    (flags.readonly !== undefined && typeof flags.readonly !== "boolean") ||
+    (flags.permissionlessExtension !== undefined && typeof flags.permissionlessExtension !== "boolean")) fail("invalid");
+  const expiration = Object.freeze({ minLifetime, expiresAt: expiresAt instanceof Date ? new Date(expiresAt) : expiresAt }) as Expiry;
+  const frozenFlags = Object.freeze({
+    readonly: flags.readonly === true,
+    permissionlessExtension: flags.permissionlessExtension === true,
+  });
+  return Object.freeze({ expiration, flags: frozenFlags });
+}
+
+function normalizePatch(schema: Schema, changes: Record<string, unknown>) {
+  const set = normalizeValues(schema, changes);
+  if (Object.keys(set).length === 0) fail("invalid");
+  return Object.freeze({ set, unset: Object.freeze([] as string[]) });
+}
+
+function canonicalValue(value: unknown, seen = new Set<object>()): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "bigint") return { $bigint: value.toString() };
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) fail("invalid");
+    return value;
+  }
+  if (typeof value === "function" || typeof value === "symbol" || value === undefined) fail("invalid");
+  if (value instanceof Uint8Array) return { $bytes: `0x${Buffer.from(value).toString("hex")}` };
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) fail("invalid");
+    return { $date: value.toISOString() };
+  }
+  if (typeof value !== "object" || seen.has(value)) fail("invalid");
+  seen.add(value);
+  try {
+    if (Array.isArray(value)) return value.map((item) => canonicalValue(item, seen));
+    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) fail("invalid");
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const keys = Reflect.ownKeys(descriptors);
+    if (keys.some((key) => typeof key !== "string" || !("value" in descriptors[key as string]!))) fail("invalid");
+    return Object.fromEntries((keys as string[]).sort().map((key) => [key, canonicalValue(descriptors[key]!.value, seen)]));
+  } finally {
+    seen.delete(value);
+  }
+}
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(canonicalValue(value));
+}
+
+function schemaArguments(schema: Schema) {
+  if (!isSchema(schema)) fail("invalid");
+  return {
+    name: schema.name ?? null,
+    columns: Object.fromEntries(Object.entries(schema.columns).sort(([a], [b]) => a.localeCompare(b)).map(([name, column]) => [name, {
+      type: column.type,
+      indexed: column.isIndexed,
+      optional: column.isOptional,
+      ...(column.defaultValue === undefined ? {} : { defaultValue: column.defaultValue }),
+    }])),
+  };
+}
+
+function operationPayload(operationId: string, operation: OperationJournalPayload["operation"], args: unknown): OperationJournalPayload {
+  if (typeof operationId !== "string" || operationId.length === 0 || Buffer.byteLength(operationId, "utf8") > MAX_STRING_BYTES) fail("invalid");
+  try { str(operationId); } catch { fail("invalid"); }
+  return { operation_id: operationId, operation, arguments: canonicalJson(args) };
+}
+
+function sameOperation(left: OperationJournalPayload, right: OperationJournalPayload): boolean {
+  return left.operation === right.operation && left.arguments === right.arguments;
+}
+
 type ExpectedCall = { from: Address; to: Address; data: Hex; value: bigint };
 type SendIntent = {
   entry: JournalEntry;
@@ -191,6 +309,17 @@ type SendIntent = {
   gas: bigint;
   gasPrice: bigint;
   attempted: boolean;
+};
+
+type OperationKind = "createEntity" | "patchEntity" | "deleteEntity";
+type PreparedOperation = {
+  payload: JournalPayload;
+  operation: OperationKind;
+  salt?: bigint;
+  flags?: CreationFlags;
+  prepare: (client: ReturnType<typeof createWalletClient>) => Promise<unknown>;
+  submit: (client: ReturnType<typeof createWalletClient>, txParams: { nonce: number; gas: bigint; gasPrice: bigint }) => Promise<PublicationResult>;
+  verify: (result: PublicationResult) => Promise<void>;
 };
 
 function transactionCall(value: unknown): ExpectedCall | undefined {
@@ -210,7 +339,7 @@ function transactionCall(value: unknown): ExpectedCall | undefined {
 
 function assertConfig(config: ArkivPublisherConfig): void {
   if (!record(config) || typeof config.privateKey !== "string" || !/^0x[\da-f]{64}$/i.test(config.privateKey) ||
-    typeof config.accessKey !== "string" || config.accessKey.length === 0 ||
+    typeof config.accessKey !== "string" ||
     typeof config.journalDirectory !== "string" || config.journalDirectory.length === 0 ||
     typeof config.maxCostWei !== "bigint" || config.maxCostWei <= 0n) fail("invalid");
 }
@@ -271,7 +400,8 @@ function validateSigned(raw: Hex, send: SendIntent, account: LocalAccount): Prom
 }
 
 async function verifyCanonicalWrite(reader: ReturnType<typeof createPublicClient>, entry: JournalEntry,
-  account: LocalAccount, expected: ExpectedCall, result: PublicationResult): Promise<{ blockHash: Hex; blockNumber: bigint }> {
+  account: LocalAccount, expected: ExpectedCall, result: PublicationResult, operation: OperationKind,
+  expectedFlags: number): Promise<{ blockHash: Hex; blockNumber: bigint }> {
   try {
     if (!entry.txHash || entry.nonce === undefined || entry.gas === undefined || entry.gasPrice === undefined ||
       result.txHash.toLowerCase() !== entry.txHash.toLowerCase() || !validHash(result.entityKey)) fail("uncertain", entry.txHash);
@@ -282,20 +412,24 @@ async function verifyCanonicalWrite(reader: ReturnType<typeof createPublicClient
       reader.getBlock({ blockNumber: receipt.blockNumber }),
       reader.getTransaction({ hash: entry.txHash }),
     ]);
-    const created = receipt.logs.flatMap((log) => {
+    const events = receipt.logs.flatMap((log) => {
       if (log.address.toLowerCase() !== ARKIV_ADDRESS.toLowerCase()) return [];
       try {
         const event = decodeEventLog({ abi: ENTITY_EVENTS_ABI, topics: log.topics, data: log.data });
-        return event.eventName === "EntityCreated" ? [{ log, args: event.args }] : [];
+        return [{ log, ...event }];
       } catch { return []; }
     });
+    const eventName = operation === "createEntity" ? "EntityCreated" : operation === "patchEntity" ? "EntityPatched" : "EntityDeleted";
+    const matching = events.filter((event) => event.eventName === eventName);
+    const event = matching[0];
+    const args = event?.args as { entityKey?: Hex; owner?: Address; expiresAt?: bigint; creationFlags?: number } | undefined;
     if (!block || block.hash.toLowerCase() !== receipt.blockHash.toLowerCase() ||
-      created.length !== 1 || created[0]!.args.entityKey.toLowerCase() !== result.entityKey.toLowerCase() ||
-      created[0]!.args.owner.toLowerCase() !== account.address.toLowerCase() ||
-      created[0]!.args.expiresAt !== result.expiresAt || created[0]!.args.creationFlags !== 0 ||
-      created[0]!.log.blockHash?.toLowerCase() !== receipt.blockHash.toLowerCase() ||
-      created[0]!.log.blockNumber !== receipt.blockNumber ||
-      created[0]!.log.transactionHash?.toLowerCase() !== entry.txHash.toLowerCase() ||
+      events.length !== 1 || matching.length !== 1 || !args?.entityKey || args.entityKey.toLowerCase() !== result.entityKey.toLowerCase() ||
+      args.owner?.toLowerCase() !== account.address.toLowerCase() ||
+      (operation === "createEntity" && (args.expiresAt !== result.expiresAt || args.creationFlags !== expectedFlags)) ||
+      event!.log.blockHash?.toLowerCase() !== receipt.blockHash.toLowerCase() ||
+      event!.log.blockNumber !== receipt.blockNumber ||
+      event!.log.transactionHash?.toLowerCase() !== entry.txHash.toLowerCase() ||
       tx.hash.toLowerCase() !== entry.txHash.toLowerCase() || tx.from.toLowerCase() !== account.address.toLowerCase() ||
       tx.nonce !== entry.nonce || tx.to?.toLowerCase() !== ARKIV_ADDRESS.toLowerCase() ||
       tx.input.toLowerCase() !== expected.data.toLowerCase() || tx.value !== 0n ||
@@ -370,17 +504,89 @@ export async function createArkivPublisher(config: ArkivPublisherConfig) {
   let closing = false;
   let closePromise: Promise<void> | undefined;
 
+  function assertReady(): void {
+    const unresolvedEntry = journal.entries().find((entry) => entry.status !== "verified");
+    if (unresolvedEntry) fail("uncertain", unresolvedEntry.txHash);
+  }
+
+  function previousOperation(payload: OperationJournalPayload): JournalEntry | undefined {
+    const previous = journal.entries().find((entry) => "operation_id" in entry.payload && entry.payload.operation_id === payload.operation_id);
+    if (!previous) return undefined;
+    if (!sameOperation(previous.payload as OperationJournalPayload, payload)) fail("conflict");
+    if (previous.status !== "verified") fail("uncertain", previous.txHash);
+    return previous;
+  }
+
+  async function executePrepared(operation: PreparedOperation): Promise<PublicationResult> {
+    await checkNetwork(readerClient, genesisHash);
+    let estimatedCall: ExpectedCall | undefined;
+    const capturedRpc = {
+      request: async (args: { method: string; params?: readonly unknown[] }) => {
+        if (args.method === "eth_estimateGas") estimatedCall = transactionCall(args.params?.[0]);
+        return rpc.request(args as never);
+      },
+    } as Parameters<typeof custom>[0];
+    let estimate: bigint;
+    try { estimate = await estimateWithRequest(account, chain, capturedRpc, operation.prepare); }
+    catch { fail("unavailable"); }
+    if (!estimatedCall || estimatedCall.from.toLowerCase() !== address.toLowerCase() ||
+      estimatedCall.to.toLowerCase() !== ARKIV_ADDRESS.toLowerCase() || estimatedCall.value !== 0n) fail("unavailable");
+    const txParams = await txParamsFor(readerClient, address, config.maxCostWei, estimate);
+    await checkNetwork(readerClient, genesisHash);
+    const entry: JournalEntry = {
+      id: randomUUID(),
+      payload: operation.payload,
+      ...(operation.salt === undefined ? {} : { salt: operation.salt.toString() }),
+      status: "intent",
+      nonce: txParams.nonce,
+      gas: txParams.gas.toString(),
+      gasPrice: txParams.gasPrice.toString(),
+    };
+    try { await journal.append(entry); }
+    catch (error) { throw safeJournalError(error); }
+
+    active = { entry, expected: estimatedCall, nonce: txParams.nonce, gas: txParams.gas,
+      gasPrice: txParams.gasPrice, attempted: false };
+    const expectedFlags = (operation.flags?.readonly ? 1 : 0) | (operation.flags?.permissionlessExtension ? 2 : 0);
+    try {
+      const result = await operation.submit(wallet, txParams);
+      if (!validHash(result.txHash) || !validHash(result.entityKey) || typeof result.expiresAt !== "bigint") fail("uncertain", entry.txHash);
+      const canonical = await verifyCanonicalWrite(readerClient, entry, account, estimatedCall, result, operation.operation, expectedFlags);
+      await journal.update(entry.id, (saved) => Object.assign(saved, {
+        status: "receipt_confirmed", entityKey: result.entityKey, expiresAt: result.expiresAt.toString(),
+        receiptBlockHash: canonical.blockHash, receiptBlockNumber: canonical.blockNumber.toString(),
+      }));
+      Object.assign(entry, { status: "receipt_confirmed", entityKey: result.entityKey, expiresAt: result.expiresAt.toString(),
+        receiptBlockHash: canonical.blockHash, receiptBlockNumber: canonical.blockNumber.toString() });
+      await checkNetwork(readerClient, genesisHash);
+      await operation.verify(result);
+      await journal.update(entry.id, (saved) => { saved.status = "verified"; delete saved.rawTransaction; });
+      entry.status = "verified";
+      delete entry.rawTransaction;
+      return result;
+    } catch {
+      if (entry.status !== "receipt_confirmed" && entry.status !== "verified") {
+        try { await journal.update(entry.id, (saved) => { saved.status = "uncertain"; }); } catch { /* journal remains fail-closed */ }
+        entry.status = "uncertain";
+      }
+      throw new PublicationError("uncertain", entry.txHash);
+    } finally {
+      active = undefined;
+    }
+  }
+
   return {
     reader,
+    client: readerClient,
+    writer: address,
     publishListing(input: unknown): Promise<PublicationResult> {
       const listing = parseNewListing(input);
       if (closing) return Promise.reject(new PublicationError("unavailable"));
       return queue.run(async () => {
         if (closing) fail("unavailable");
         const payload = journalPayload(listing);
-        const unresolvedEntry = journal.entries().find((entry) => entry.status !== "verified");
-        if (unresolvedEntry) fail("uncertain", unresolvedEntry.txHash);
-        const previous = journal.entries().find((entry) => entry.payload.listing_id === listing.listing_id);
+        assertReady();
+        const previous = journal.entries().find((entry) => "listing_id" in entry.payload && entry.payload.listing_id === listing.listing_id);
         if (previous) {
           if (!samePayload(previous.payload, payload)) fail("conflict");
           return {
@@ -389,9 +595,6 @@ export async function createArkivPublisher(config: ArkivPublisherConfig) {
             expiresAt: BigInt(previous.expiresAt!),
           };
         }
-
-        try { await checkNetwork(readerClient, genesisHash); }
-        catch (error) { if (error instanceof PublicationError) throw error; fail("unavailable"); }
         const salt = BigInt(`0x${randomBytes(16).toString("hex")}`);
         const values = valuesOf(listing);
         const options = Object.freeze({
@@ -399,89 +602,115 @@ export async function createArkivPublisher(config: ArkivPublisherConfig) {
           flags: Object.freeze({ readonly: false, permissionlessExtension: false }),
           salt,
         });
-        let estimatedCall: ExpectedCall | undefined;
-        const capturedRpc = {
-          request: async (args: { method: string; params?: readonly unknown[] }) => {
-            if (args.method === "eth_estimateGas") estimatedCall = transactionCall(args.params?.[0]);
-            return rpc.request(args as never);
-          },
-        } as Parameters<typeof custom>[0];
-        let estimate: bigint;
-        try {
-          estimate = await estimateWithRequest(account, chain, capturedRpc,
-            (unsigned) => unsigned.createEntity(listingSchema, values, options));
-        } catch {
-          fail("unavailable");
-        }
-        if (!estimatedCall || estimatedCall.from.toLowerCase() !== address.toLowerCase() ||
-          estimatedCall.to.toLowerCase() !== ARKIV_ADDRESS.toLowerCase() || estimatedCall.value !== 0n) fail("unavailable");
-        const txParams = await txParamsFor(readerClient, address, config.maxCostWei, estimate);
-        try { await checkNetwork(readerClient, genesisHash); }
-        catch (error) { if (error instanceof PublicationError) throw error; fail("unavailable"); }
-        const entry: JournalEntry = {
-          id: randomUUID(),
+        return executePrepared({
           payload,
-          salt: salt.toString(),
-          status: "intent",
-          nonce: txParams.nonce,
-          gas: txParams.gas.toString(),
-          gasPrice: txParams.gasPrice.toString(),
-        };
-        try { await journal.append(entry); }
-        catch (error) { throw safeJournalError(error); }
-
-        active = {
-          entry,
-          expected: estimatedCall,
-          nonce: txParams.nonce,
-          gas: txParams.gas,
-          gasPrice: txParams.gasPrice,
-          attempted: false,
-        };
-        try {
-          const result = await wallet.createEntity(listingSchema, values, options, txParams);
-          if (!validHash(result.txHash) || !validHash(result.entityKey) || typeof result.expiresAt !== "bigint") fail("uncertain", entry.txHash);
-          const canonical = await verifyCanonicalWrite(readerClient, entry, account, estimatedCall, result);
-          await journal.update(entry.id, (saved) => Object.assign(saved, {
-            status: "receipt_confirmed",
-            entityKey: result.entityKey,
-            expiresAt: result.expiresAt.toString(),
-            receiptBlockHash: canonical.blockHash,
-            receiptBlockNumber: canonical.blockNumber.toString(),
-          }));
-          Object.assign(entry, {
-            status: "receipt_confirmed",
-            entityKey: result.entityKey,
-            expiresAt: result.expiresAt.toString(),
-            receiptBlockHash: canonical.blockHash,
-            receiptBlockNumber: canonical.blockNumber.toString(),
-          });
-          await checkNetwork(readerClient, genesisHash);
-          const observed = await reader.getListing(result.entityKey);
-          if (!observed || observed.expiresAt !== result.expiresAt || observed.listing_id !== listing.listing_id ||
-            observed.domain !== listing.domain || observed.region !== listing.region || observed.source !== listing.source ||
-            observed.week !== listing.week || observed.quality_tier !== listing.quality_tier ||
-            observed.consent_insights !== listing.consent_insights || observed.consent_sale !== listing.consent_sale ||
-            observed.price !== listing.price || observed.envelope_format !== listing.envelope_format ||
-            observed.ciphertext.toLowerCase() !== listing.ciphertext.toLowerCase() ||
-            observed.wrapped_key.toLowerCase() !== listing.wrapped_key.toLowerCase() ||
-            observed.sealed_seller.toLowerCase() !== listing.sealed_seller.toLowerCase()) fail("uncertain", entry.txHash);
-          await journal.update(entry.id, (saved) => {
-            saved.status = "verified";
-            delete saved.rawTransaction;
-          });
-          Object.assign(entry, { status: "verified" });
-          delete entry.rawTransaction;
-          return { entityKey: result.entityKey, txHash: result.txHash, expiresAt: result.expiresAt };
-        } catch {
-          if (entry.status !== "receipt_confirmed" && entry.status !== "verified") {
-            try { await journal.update(entry.id, (saved) => { saved.status = "uncertain"; }); } catch { /* journal remains fail-closed */ }
-            entry.status = "uncertain";
-          }
-          throw new PublicationError("uncertain", entry.txHash);
-        } finally {
-          active = undefined;
-        }
+          operation: "createEntity",
+          salt,
+          flags: options.flags,
+          prepare: (unsigned) => unsigned.createEntity(listingSchema, values, options),
+          submit: (signer, txParams) => signer.createEntity(listingSchema, values, options, txParams),
+          verify: async (result) => {
+            const observed = await reader.getListing(result.entityKey);
+            if (!observed || observed.expiresAt !== result.expiresAt || observed.listing_id !== listing.listing_id ||
+              observed.domain !== listing.domain || observed.region !== listing.region || observed.source !== listing.source ||
+              observed.week !== listing.week || observed.quality_tier !== listing.quality_tier ||
+              observed.consent_insights !== listing.consent_insights || observed.consent_sale !== listing.consent_sale ||
+              observed.price !== listing.price || observed.envelope_format !== listing.envelope_format ||
+              observed.ciphertext.toLowerCase() !== listing.ciphertext.toLowerCase() ||
+              observed.wrapped_key.toLowerCase() !== listing.wrapped_key.toLowerCase() ||
+              observed.sealed_seller.toLowerCase() !== listing.sealed_seller.toLowerCase()) fail("uncertain", result.txHash);
+          },
+        });
+      });
+    },
+    createEntity(operationId: string, schema: Schema, inputValues: Record<string, unknown>, inputOptions: { expiration: Expiry; flags: CreationFlags }): Promise<PublicationResult> {
+      const values = normalizeValues(schema, inputValues);
+      const options = normalizeCreateOptions(inputOptions);
+      const payload = operationPayload(operationId, "createEntity", {
+        schema: schemaArguments(schema), values, expiration: options.expiration, flags: options.flags,
+      });
+      if (closing) return Promise.reject(new PublicationError("unavailable"));
+      return queue.run(async () => {
+        if (closing) fail("unavailable");
+        assertReady();
+        const previous = previousOperation(payload);
+        if (previous) return { entityKey: previous.entityKey!, txHash: previous.txHash!, expiresAt: BigInt(previous.expiresAt!) };
+        const salt = BigInt(`0x${randomBytes(16).toString("hex")}`);
+        const optionsWithSalt = Object.freeze({ ...options, salt });
+        const flags = options.flags;
+        return executePrepared({
+          payload, operation: "createEntity", salt, flags,
+          prepare: (unsigned) => unsigned.createEntity(schema, values as never, optionsWithSalt),
+          submit: (signer, txParams) => signer.createEntity(schema, values as never, optionsWithSalt, txParams),
+          verify: async (result) => {
+            const row = await readerClient.getEntity(result.entityKey, schema);
+            const metadata = row as unknown as Record<string, unknown>;
+            const creationFlags = metadata.$creationFlags as { readonly?: unknown; permissionlessExtension?: unknown };
+            if (String(metadata.$key).toLowerCase() !== result.entityKey.toLowerCase() ||
+              String(metadata.$creator).toLowerCase() !== address.toLowerCase() ||
+              String(metadata.$owner).toLowerCase() !== address.toLowerCase() ||
+              metadata.$expiresAt !== result.expiresAt || creationFlags?.readonly !== flags.readonly ||
+              creationFlags?.permissionlessExtension !== flags.permissionlessExtension) fail("uncertain", result.txHash);
+            for (const [name, column] of Object.entries(schema.columns)) {
+              const expected = Object.hasOwn(values, name) ? values[name] : column.defaultValue;
+              if (expected === undefined ? metadata[name] !== undefined : canonicalJson(metadata[name]) !== canonicalJson(expected)) {
+                fail("uncertain", result.txHash);
+              }
+            }
+          },
+        });
+      });
+    },
+    patchEntity(operationId: string, schema: Schema, entityKey: Hex, inputChanges: Record<string, unknown>): Promise<{ txHash: Hex }> {
+      if (!validHash(entityKey)) fail("invalid");
+      const changes = normalizePatch(schema, inputChanges);
+      const payload = operationPayload(operationId, "patchEntity", { schema: schemaArguments(schema), entityKey, changes });
+      if (closing) return Promise.reject(new PublicationError("unavailable"));
+      return queue.run(async () => {
+        if (closing) fail("unavailable");
+        assertReady();
+        const previous = previousOperation(payload);
+        if (previous) return { txHash: previous.txHash! };
+        return executePrepared({
+          payload, operation: "patchEntity",
+          prepare: (unsigned) => unsigned.patchEntity(schema, entityKey, changes as never),
+          submit: async (signer, txParams) => {
+            const result = await signer.patchEntity(schema, entityKey, changes as never, txParams);
+            return { entityKey, txHash: result.txHash, expiresAt: 0n };
+          },
+          verify: async () => {
+            const row = await readerClient.getEntity(entityKey, schema);
+            const metadata = row as unknown as Record<string, unknown>;
+            if (String(metadata.$creator).toLowerCase() !== address.toLowerCase() || String(metadata.$owner).toLowerCase() !== address.toLowerCase()) fail("uncertain");
+            for (const [name, value] of Object.entries(changes.set)) {
+              if (canonicalJson(metadata[name]) !== canonicalJson(value)) fail("uncertain");
+            }
+            for (const name of changes.unset) if (metadata[name] !== undefined) fail("uncertain");
+          },
+        }).then(({ txHash }) => ({ txHash }));
+      });
+    },
+    deleteEntity(operationId: string, entityKey: Hex): Promise<{ txHash: Hex }> {
+      if (!validHash(entityKey)) fail("invalid");
+      const payload = operationPayload(operationId, "deleteEntity", { entityKey });
+      if (closing) return Promise.reject(new PublicationError("unavailable"));
+      return queue.run(async () => {
+        if (closing) fail("unavailable");
+        assertReady();
+        const previous = previousOperation(payload);
+        if (previous) return { txHash: previous.txHash! };
+        return executePrepared({
+          payload, operation: "deleteEntity",
+          prepare: (unsigned) => unsigned.deleteEntity({ entityKey }),
+          submit: async (signer, txParams) => {
+            const result = await signer.deleteEntity({ entityKey }, txParams);
+            return { entityKey, txHash: result.txHash, expiresAt: 0n };
+          },
+          verify: async () => {
+            try { await readerClient.getEntity(entityKey); fail("uncertain"); }
+            catch (error) { if (!(error instanceof NoEntityFoundError)) throw error; }
+          },
+        }).then(({ txHash }) => ({ txHash }));
       });
     },
     close(): Promise<void> {
