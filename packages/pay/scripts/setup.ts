@@ -61,6 +61,22 @@ async function main() {
     console.log(`Payment topic exists: ${process.env["HEDERA_PAYMENT_TOPIC_ID"]}`);
   }
 
+  // 3 · demo seller account: receives the 80% payouts from the treasury
+  if (!process.env["SELLER_HEDERA_ACCOUNT_ID"]) {
+    const sellerKey = PrivateKey.generateECDSA();
+    const tx = await new AccountCreateTransaction()
+      .setECDSAKeyWithAlias(sellerKey.publicKey)
+      .setInitialBalance(new Hbar(1))
+      .setAccountMemo("hissa demo seller (testnet)")
+      .execute(treasury);
+    const receipt = await tx.getReceipt(treasury);
+    const sellerId = receipt.accountId!.toString();
+    appendEnv({ SELLER_HEDERA_ACCOUNT_ID: sellerId, SELLER_HEDERA_PRIVATE_KEY: `0x${sellerKey.toStringRaw()}` });
+    console.log(`Created seller account ${sellerId}  ${hashscan.tx(tx.transactionId.toString())}`);
+  } else {
+    console.log(`Seller account exists: ${process.env["SELLER_HEDERA_ACCOUNT_ID"]}`);
+  }
+
   const agentId = requireEnv("AGENT_HEDERA_ACCOUNT_ID");
   console.log(`Agent ${agentId}: ${await hbarBalance(agentId)} HBAR  ${hashscan.account(agentId)}`);
   treasury.close();

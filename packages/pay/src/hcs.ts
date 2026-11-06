@@ -7,7 +7,7 @@ import { TopicId, TopicMessageSubmitTransaction, type Client } from "@hiero-ledg
 
 export type AgentPaymentLog = {
   v: 1;
-  kind: "record_purchase" | "insight_purchase";
+  kind: "record_purchase" | "insight_purchase" | "contact_purchase";
   resource: string;
   listing?: string;
   analysis_id?: string;

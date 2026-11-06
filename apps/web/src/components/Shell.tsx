@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { BRAND, SHOW_DEVANAGARI, SHOW_SIM_BADGE } from "../config";
+import { ACCOUNTS, BRAND, SHOW_DEVANAGARI, SHOW_SIM_BADGE, START_BALANCE, hashscanAccount } from "../config";
 import { HissaMark } from "./HissaMark";
+import { useLive } from "../live";
 import { useStore } from "../store";
 
 export type Route = "" | "seller" | "agent" | "ledger";
@@ -26,8 +27,8 @@ export function useRoute(): Route {
 
 const LINKS: { id: Route; label: string }[] = [
   { id: "seller", label: "Seller" },
-  { id: "agent", label: "Merchant Agent" },
-  { id: "ledger", label: "Ledger" },
+  { id: "agent", label: "Buyer" },
+  { id: "ledger", label: "Public Ledger" },
 ];
 
 export function Nav({ route }: { route: Route }) {
@@ -67,10 +68,8 @@ export function Nav({ route }: { route: Route }) {
           </a>
         ) : (
           <>
-            <span className="net">
-              <i className="pulse" /> Rabdi · Hedera testnet · 0G
-            </span>
-            {SHOW_SIM_BADGE && <span className="sim">PREVIEW · SIMULATED</span>}
+            <AccountPill route={route} />
+            <ModeBadge />
             <button className="btn-icon" title="Reset demo" onClick={reset}>
               ↺
             </button>
@@ -93,12 +92,14 @@ export function DemoGuide({ route }: { route: Route }) {
   if (!open) return null;
 
   const l = state.listing;
+  const ct = state.contact;
   let step: { n: number; text: string; href: Route };
-  if (!l) step = { n: 1, text: "Publish Priya's chat as an encrypted listing", href: "seller" };
-  else if (!state.report) step = { n: 2, text: "Run the merchant agent — it pays on its own", href: "agent" };
-  else if (l.consentSale && l.live) step = { n: 3, text: "Revoke sale consent, then rerun the agent", href: "seller" };
-  else if (state.earnings.paid === 0) step = { n: 4, text: "Open the ledger and run the payout batch", href: "ledger" };
-  else step = { n: 5, text: "Demo complete — reset with ↺", href: route };
+  if (!l) step = { n: 1, text: "Seller: publish Priya's chat", href: "seller" };
+  else if (!state.bought.length) step = { n: 2, text: "Buyer: describe what you need, find data", href: "agent" };
+  else if (!ct && l.live && l.consentContact) step = { n: 3, text: "Buyer: message sellers on Telegram", href: "agent" };
+  else if (ct?.reply === "pending") step = { n: 4, text: "Seller: answer on Priya's Telegram", href: "seller" };
+  else if (l.live) step = { n: 5, text: "Seller: revoke, then buyer sends a follow-up", href: "seller" };
+  else step = { n: 5, text: "Public Ledger: every payment, no names", href: "ledger" };
 
   return (
     <a className="guide" href={`#/${step.href}`}>
@@ -107,4 +108,44 @@ export function DemoGuide({ route }: { route: Route }) {
       {step.href !== route && <span className="guide-go">→</span>}
     </a>
   );
+}
+
+/** The Hedera account signed in for the current role. The public ledger needs none. */
+function AccountPill({ route }: { route: Route }) {
+  const { state } = useStore();
+  const { live, accounts, balances } = useLive();
+  if (route === "ledger")
+    return (
+      <span className="acct readonly">
+        <span className="acct-who">
+          <b>Public</b>
+          <small>read-only · no login</small>
+        </span>
+      </span>
+    );
+  const seller = route === "seller";
+  const id = (seller ? accounts?.seller : accounts?.agent) ?? (seller ? ACCOUNTS.seller : ACCOUNTS.agent);
+  const real = live && balances ? (seller ? balances.seller : balances.agent) : null;
+  const balance = real ?? (seller ? START_BALANCE.seller + state.earnings.paid : START_BALANCE.buyer - state.spent);
+  return (
+    <a className="acct" href={hashscanAccount(id)} target="_blank" rel="noreferrer" title="Open on HashScan">
+      <span className={`acct-avatar ${seller ? "s" : "b"}`}>{seller ? "P" : "AI"}</span>
+      <span className="acct-who">
+        <b>{seller ? "Priya · Seller" : "Buyer agent"}</b>
+        <small className="mono">{id}</small>
+      </span>
+      <span className="acct-bal mono">
+        {balance.toFixed(2)} <span>ℏ</span>
+      </span>
+      <i className="pulse" title="Hedera testnet" />
+    </a>
+  );
+}
+
+/** LIVE when the demo API is reachable (real Hedera testnet payments), otherwise SIMULATED. */
+function ModeBadge() {
+  const { live, checked } = useLive();
+  if (!checked) return null;
+  if (live) return <span className="sim live" title="Payments settle on Hedera testnet">LIVE · HEDERA TESTNET</span>;
+  return SHOW_SIM_BADGE ? <span className="sim" title="Start the demo API for real payments: npm run demo:api">SIMULATED</span> : null;
 }

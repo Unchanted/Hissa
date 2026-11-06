@@ -82,8 +82,16 @@ export function Panel({ children, label, className = "", aside }: { children: Re
 }
 
 /** A hash or ID shown short, full value on hover, click to copy. Marked as simulated. */
-export function Hash({ value, head = 8, tail = 6, label }: { value: string; head?: number; tail?: number; label?: string }) {
+export function Hash({ value, head = 8, tail = 6, label, href }: { value: string; head?: number; tail?: number; label?: string; href?: string }) {
   const [copied, setCopied] = useState(false);
+  if (href)
+    return (
+      <a className="hash live" href={href} target="_blank" rel="noreferrer" title={`${value}\nOpen on HashScan`}>
+        {label && <span className="hash-label">{label}</span>}
+        <span>{short(value, head, tail)}</span>
+        <span className="hash-ext">↗</span>
+      </a>
+    );
   return (
     <button
       type="button"

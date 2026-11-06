@@ -9,7 +9,9 @@
     "hedera:setup": "tsx packages/pay/scripts/setup.ts",
     "hedera:server": "tsx apps/server/src/pay-demo.ts",
     "hedera:agent": "tsx apps/agent/src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo:api": "tsx apps/server/src/api.ts",
+    "demo:web": "npm --prefix apps/web run dev"
   },
   "dependencies": {
     "@hiero-ledger/sdk": "2.85.0",
