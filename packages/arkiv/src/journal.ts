@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import type { Address, Hex } from "viem";
 
-export type JournalPayload = {
+export type ListingJournalPayload = {
   listing_id: string;
   domain: string;
   region: string;
@@ -20,10 +20,18 @@ export type JournalPayload = {
   expires_in_seconds: number;
 };
 
+export type OperationJournalPayload = {
+  operation_id: string;
+  operation: "createEntity" | "patchEntity" | "deleteEntity";
+  arguments: string;
+};
+
+export type JournalPayload = ListingJournalPayload | OperationJournalPayload;
+
 export type JournalEntry = {
   id: string;
   payload: JournalPayload;
-  salt: string;
+  salt?: string;
   status: "intent" | "submitting" | "receipt_confirmed" | "uncertain" | "verified";
   nonce?: number;
   gas?: string;
@@ -65,6 +73,9 @@ function validHash(value: unknown): value is Hex {
 function validPayload(value: unknown): value is JournalPayload {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
+  if (typeof row.operation_id === "string") return row.operation_id.length > 0 &&
+    ["createEntity", "patchEntity", "deleteEntity"].includes(String(row.operation)) &&
+    typeof row.arguments === "string";
   return typeof row.listing_id === "string" && typeof row.domain === "string" &&
     typeof row.region === "string" && typeof row.source === "string" &&
     typeof row.week === "string" && typeof row.quality_tier === "string" &&
@@ -77,9 +88,13 @@ function validPayload(value: unknown): value is JournalPayload {
 function validEntry(value: unknown): value is JournalEntry {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
-  if (typeof row.id !== "string" || !validPayload(row.payload) ||
-    typeof row.salt !== "string" || !/^\d+$/.test(row.salt) ||
+  const payload = row.payload;
+  if (typeof row.id !== "string" || !validPayload(payload) ||
     !["intent", "submitting", "receipt_confirmed", "uncertain", "verified"].includes(String(row.status))) return false;
+  if ("listing_id" in payload && (typeof row.salt !== "string" || !/^\d+$/.test(row.salt))) return false;
+  if ("operation_id" in payload && payload.operation === "createEntity" &&
+    (typeof row.salt !== "string" || !/^\d+$/.test(row.salt))) return false;
+  if (row.salt !== undefined && (typeof row.salt !== "string" || !/^\d+$/.test(row.salt))) return false;
   if (!Number.isSafeInteger(row.nonce) || (row.nonce as number) < 0) return false;
   if (typeof row.gas !== "string" || !/^\d+$/.test(row.gas)) return false;
   if (typeof row.gasPrice !== "string" || !/^\d+$/.test(row.gasPrice)) return false;
@@ -108,7 +123,10 @@ function validDataShape(value: unknown): value is JournalData {
   return row.version === 1 && row.chainId === "7794095" && typeof row.writer === "string" &&
     validHash(row.genesisHash) && Array.isArray(row.operations) && row.operations.every(validEntry) &&
     new Set(row.operations.map((entry) => (entry as JournalEntry).id)).size === row.operations.length &&
-    new Set(row.operations.map((entry) => (entry as JournalEntry).payload.listing_id)).size === row.operations.length;
+    new Set(row.operations.map((entry) => {
+      const payload = (entry as JournalEntry).payload;
+      return "operation_id" in payload ? `o:${payload.operation_id}` : `l:${payload.listing_id}`;
+    })).size === row.operations.length;
 }
 
 function matchesIdentity(value: JournalData, identity: Omit<JournalData, "operations">): boolean {
