@@ -116,8 +116,8 @@ export const api = {
   insightQuote: (filters: { domain: string; region?: string }) =>
     call<CohortQuote>(`/api/insights/quote?${new URLSearchParams(Object.entries(filters).filter(([, v]) => !!v) as [string, string][])}`),
   /** The agent pays for the report over x402; 0G runs the analysis; nothing is charged if it fails. */
-  insight: (question: string, filters: { domain: string; region?: string }, budgetLeftHbar: number) =>
-    call<InsightResult>("/agent/insight", { method: "POST", body: JSON.stringify({ question, filters, budgetLeftHbar }), signal: AbortSignal.timeout(150000) }),
+  insight: (question: string, filters: { domain: string; region?: string }, budgetLeftHbar: number, hypothesis?: string) =>
+    call<InsightResult>("/agent/insight", { method: "POST", body: JSON.stringify({ question, hypothesis, filters, budgetLeftHbar }), signal: AbortSignal.timeout(150000) }),
 };
 
 type LiveCtx = {

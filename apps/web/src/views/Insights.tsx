@@ -89,7 +89,7 @@ export function Insights({ budgetLeft, onSpent }: { budgetLeft: number; onSpent:
       // 3 + 4 · the agent pays over x402; the paid route runs the sealed analysis
       set("pay", "run");
       set("analyse", "run");
-      const r = await api.insight(p.question ?? idea, filters, budgetLeft);
+      const r = await api.insight(p.question ?? idea, filters, budgetLeft, idea);
       if (r.status === "refused") {
         for (const id of ["pay", "analyse", "share"] as const) set(id, "skip");
         return setError(r.reason);
