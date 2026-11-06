@@ -3,8 +3,8 @@
  *   app.route("/api/ai", aiRoutes());
  *
  *   GET  /api/ai/models          sealed (TeeML) models currently offered by the 0G Router
- *   POST /api/ai/analyse-upload  { maskedText } -> missed identifiers, masked text, facets, 0G receipt
- *   POST /api/ai/parse-request   { request } -> buyer's sentence as marketplace filters, 0G receipt
+ *   POST /api/ai/analyse-upload  { maskedText } -> facets of text already masked on the device, 0G receipt
+ *   POST /api/ai/parse-request   { request, mode? } -> buyer's sentence as filters (+ question in insights mode), 0G receipt
  *   POST /api/ai/insight-demo    { small? } -> anonymised insight report on the synthetic cohort
  *                                (small=true shows the k-anonymity refusal, no 0G call)
  */
@@ -45,10 +45,10 @@ export function aiRoutes() {
   });
 
   app.post("/parse-request", async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { request?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as { request?: unknown; mode?: unknown } | null;
     if (typeof body?.request !== "string") return c.json({ error: "request (string) required" }, 400);
     try {
-      return c.json(await parseBuyerRequest(body.request));
+      return c.json(await parseBuyerRequest(body.request, body.mode === "insights" ? "insights" : "records"));
     } catch (e) {
       const err = e as ZeroGError;
       const status = err.status >= 400 && err.status < 600 ? err.status : 502;

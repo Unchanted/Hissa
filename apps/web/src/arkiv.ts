@@ -31,6 +31,8 @@ export type ListingInput = {
   maskedText: string;
   consentSale: boolean;
   consentContact: boolean;
+  /** Counted in anonymised analytics reports (k ≥ 50, never quoted). */
+  consentInsights: boolean;
   expiresInDays: number;
   payoutAccount: string;
 };
@@ -183,7 +185,7 @@ export async function buildListingUpload(input: ListingInput, config: ArkivConfi
     source: input.source,
     week,
     quality_tier: "silver",
-    consent_insights: false,
+    consent_insights: input.consentInsights,
     consent_sale: input.consentSale,
     price: "100000000",
     envelope_format: ENVELOPE_FORMAT,

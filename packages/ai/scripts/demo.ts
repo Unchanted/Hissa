@@ -1,6 +1,7 @@
 /**
- * 0G showcase: a synthetic chat goes through on-device style regex masking, then one sealed
- * 0G call catches what the regex missed and extracts facets. Prints the 0G receipt and writes
+ * 0G showcase: a synthetic chat whose names and places were already masked on the device (the
+ * web app does this with an in-browser NER model), plus regex masking of emails and phones, then
+ * one sealed 0G call classifies it into facets. Prints the 0G receipt and writes
  * evidence/0g-demo-run.json. Synthetic text only.
  *
  *   npx tsx packages/ai/scripts/demo.ts
@@ -9,9 +10,9 @@ import { writeFileSync } from "node:fs";
 import { analyseUpload } from "../src/upload.js";
 import { ROUTER_URL, ZeroGError } from "../src/zerog.js";
 
-const CHAT = `I'm 22 and in my final year, money is tight. My friend Priya Raghavan said the Minimalist niacinamide serum is good but at ₹599 it's too expensive for me.
-I used The Ordinary for 3 weeks and saw no visible results, so I stopped. Arjun suggested a cheaper Plum one.
-I live near Koramangala 5th Block and work part-time at Mehta & Sons Textiles. Dr. Kavita Rao told me to avoid strong acids because my skin got irritated.
+const CHAT = `I'm 22 and in my final year, money is tight. My friend [PERSON_1] said the Minimalist niacinamide serum is good but at ₹599 it's too expensive for me.
+I used The Ordinary for 3 weeks and saw no visible results, so I stopped. [PERSON_2] suggested a cheaper Plum one.
+I live near [PLACE_1] and work part-time at Mehta & Sons Textiles. Dr. [PERSON_3] told me to avoid strong acids because my skin got irritated.
 Mail me at priya.student@example.com or call +91 98765 43210. Thinking of Dot & Key sunscreen if there's a sale on Nykaa.`;
 
 // Step 1 (on device in the real app): regex masking of obvious identifiers.
@@ -32,11 +33,8 @@ console.log("── 2. Sealed (TEE) chat models on 0G right now ─────�
 
 try {
   const out = await analyseUpload(step1);
-  console.log("── 3. 0G caught what the regex missed ───────────────────");
-  for (const x of out.extraIdentifiers) console.log(`  ${x.type.padEnd(6)} ${x.text}`);
-  console.log("\n── 4. Fully masked text ─────────────────────────────────\n" + out.maskedText + "\n");
-  console.log("── 5. Facets (what the data is about) ───────────────────\n" + JSON.stringify(out.facets, null, 2) + "\n");
-  console.log("── 6. 0G receipt ────────────────────────────────────────");
+  console.log("── 3. Facets from 0G (what the masked text is about) ───────────────────\n" + JSON.stringify(out.facets, null, 2) + "\n");
+  console.log("── 4. 0G receipt ────────────────────────────────────────");
   console.log(`  request_id    ${out.receipt.request_id}`);
   console.log(`  model         ${out.receipt.model}  (trust mode: ${out.receipt.trust_mode})`);
   console.log(`  tee_verified  ${out.receipt.tee_verified}`);

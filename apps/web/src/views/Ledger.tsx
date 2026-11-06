@@ -14,6 +14,7 @@ const KIND_LABEL: Record<ReceiptKind, string> = {
   contact: "MESSAGE",
   payout: "PAYOUT",
   inference: "0G TEE",
+  report: "REPORT",
 };
 
 /** Public audit page: anyone can read it. No names, no handles — listing IDs and transactions only. */
@@ -38,7 +39,8 @@ export function Ledger() {
     const timer = setInterval(() => void load(), 15000);
     return () => { active = false; clearInterval(timer); };
   }, [live]);
-  const rows = [...(live ? liveRows : state.receipts)].sort((a, b) => b.at - a.at);
+  // Live rows come from Arkiv; 0G request IDs from this session are added (0G has no public receipt feed).
+  const rows = [...(live ? [...liveRows, ...state.receipts.filter((r) => r.chain === "0g")] : state.receipts)].sort((a, b) => b.at - a.at);
 
   return (
     <div className="page">

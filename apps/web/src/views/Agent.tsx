@@ -1,14 +1,31 @@
 import { useState } from "react";
 import { Button, Chip, Console, CountUp, Hash, PageHead, Panel, SponsorTag, useLog } from "../components/ui";
-import { CONTACT_MESSAGE, SIM_THEMES, OTHER_RECORDS, PRIYA_RECORD, REQUEST_EXAMPLES, matches, parseRequest, type Filters, type MarketRecord } from "../demo-data";
+import { CONTACT_MESSAGE, OTHER_RECORDS, PRIYA_RECORD, REQUEST_EXAMPLES, matches, parseRequest, type Filters, type MarketRecord } from "../demo-data";
 import { ACCOUNTS, AGENT_DEFAULTS, PRICES, SELLER_SHARE } from "../config";
-import { evmHash, hbar, hederaTxId, isoWeek, ogRequestId, sleep } from "../lib";
+import { hbar, hederaTxId, isoWeek, sleep } from "../lib";
 import { useStore, type State } from "../store";
 import { api, useLive, type PublicListing } from "../live";
 import { TxModal, type RunTx } from "../components/TxModal";
+import { Insights } from "./Insights";
+import { DOMAINS, ZG_NOTE, band, teeLabel } from "../zerog";
+
+type Mode = "insights" | "records";
+const MODES: { id: Mode; title: string; sub: string; points: string[] }[] = [
+  {
+    id: "insights",
+    title: "Validate an idea",
+    sub: "Anonymised analytics",
+    points: ["Test a business idea against what real people say", "Patterns and shares, never a person or a quote", `${PRICES.insight} ℏ per report · 80% to the people counted`],
+  },
+  {
+    id: "records",
+    title: "Buy training data",
+    sub: "Pseudonymised records",
+    points: ["Masked chat records for training or evaluating agents", "Only sellers who consented to sale · revocable", `${PRICES.record} ℏ per record · 80% to the seller`],
+  },
+];
 
 type CardState = "locked" | "buying" | "owned";
-type Analysis = { themes: { name: string; share_pct: number }[]; bucket: string; reqIds: string[]; tee: boolean; simulated: boolean; synthetic: true };
 type Card = MarketRecord & { state: CardState; paymentTx?: string; href?: string };
 
 function marketFor(s: State): MarketRecord[] {
@@ -25,13 +42,13 @@ export function Agent() {
   const { state, update, addReceipt } = useStore();
   const [q, setQ] = useState(REQUEST_EXAMPLES[0]!);
   const [budget, setBudget] = useState(AGENT_DEFAULTS.budget);
-  const [filters, setFilters] = useState<{ f: Filters; req: string } | null>(null);
+  const [filters, setFilters] = useState<{ f: Filters; req?: string; tee?: boolean } | null>(null);
+  const [mode, setMode] = useState<Mode>("insights");
   const [msg, setMsg] = useState(CONTACT_MESSAGE);
   const [busy, setBusy] = useState(false);
   const [cards, setCards] = useState<Card[]>(() => state.bought.map((b) => ({ ...b, state: "owned" as const })));
   const log = useLog();
   const { live, zg, refresh } = useLive();
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [showTx, setShowTx] = useState(false);
   const txs: RunTx[] = [
     ...state.bought.map((b) => ({ label: `Record ${b.listingId}`, txId: b.paymentTx, href: b.href, amount: PRICES.record })),
@@ -52,11 +69,26 @@ export function Agent() {
     let seq = state.hcsSeq;
     const have = new Set(state.bought.map((b) => b.listingId));
 
-    p("0g · turn request into filters", "og");
-    await sleep(1100);
-    const f = parseRequest(q);
-    const req = ogRequestId();
-    setFilters({ f, req });
+    let f: Filters;
+    if (zg) {
+      p("0g · turn request into filters · sealed in TEE", "og");
+      try {
+        const r = await api.parseRequest(q, "records");
+        f = { domain: r.filters.domain, age: r.filters.age && band(r.filters.age), region: r.filters.region, event: r.filters.event };
+        setFilters({ f, req: r.receipt.request_id, tee: r.receipt.tee_verified === true });
+        addReceipt({ kind: "inference", title: `request → filters · ${teeLabel(r.receipt)}`, chain: "0g", tx: r.receipt.request_id });
+        p(`filters ready · ${teeLabel(r.receipt)} · ${r.receipt.latency_ms} ms`, "og");
+      } catch (cause) {
+        f = parseRequest(q);
+        setFilters({ f });
+        p(`0G unavailable · ${(cause as Error).message} · keyword filters`, "warn");
+      }
+    } else {
+      f = parseRequest(q);
+      setFilters({ f });
+      p("0G not configured · keyword filters", "warn");
+    }
+    if (!(DOMAINS as readonly string[]).includes(f.domain)) f = { ...f, domain: "other" };
     let market: MarketRecord[];
     if (live) {
       try {
@@ -146,27 +178,6 @@ export function Agent() {
     }
     if (live) refresh();
 
-    // 04 · private analysis inside a 0G TEE (anonymised: k ≥ 50, noised, no quotes)
-    if (state.bought.length + toBuy.length > 0 && log.alive.current) {
-      p("0g · synthetic insight demo · not an Arkiv cohort", "og");
-      let a: Analysis | null = null;
-      if (zg) {
-        try {
-          const r = await api.insight();
-          if (r.status === "ok")
-            a = { themes: r.themes, bucket: r.cohort_bucket, reqIds: r.receipts.map((x) => x.request_id), tee: r.receipts.every((x) => x.tee_verified !== false), simulated: false, synthetic: true };
-          else p(`refused · ${r.reason}`, "warn");
-        } catch (e) {
-          p(`0G unavailable · ${(e as Error).message} · simulated`, "warn");
-        }
-      }
-      if (!a) {
-        await sleep(1600);
-        a = { themes: SIM_THEMES, bucket: "50–99", reqIds: [ogRequestId(), ogRequestId(), ogRequestId()], tee: false, simulated: true, synthetic: true };
-      }
-      setAnalysis(a);
-      p(`report ready · ${a.reqIds.length} sealed 0G calls`, "og");
-    }
     p(`done · spent ${hbar(spent - state.spent)} ℏ · logged to HCS ${ACCOUNTS.hcsTopic}`, "ok");
     setBusy(false);
   }
@@ -247,12 +258,45 @@ export function Agent() {
         eyebrow="// BUYER — AI COMPANY"
         title={
           <>
-            Find the data <em>you need.</em>
+            Ask real people's data <em>a question.</em>
           </>
+        }
+        sub="Two ways to buy. Your agent pays on Hedera with x402, within its budget, and the people behind the data get 80%."
+        aside={
+          <span className="budget-inline">
+            <small className="mono muted">AGENT BUDGET</small>
+            {[5, 10, 20].map((b) => (
+              <button key={b} className={b === budget ? "on" : ""} onClick={() => setBudget(b)} disabled={busy}>
+                {b} ℏ
+              </button>
+            ))}
+            <b className="mono">
+              <CountUp value={Math.max(0, left)} decimals={2} /> ℏ left
+            </b>
+          </span>
         }
       />
 
-      <Panel label="WHAT ARE YOU LOOKING FOR?" className="request">
+      <div className="mode-switch" role="tablist">
+        {MODES.map((m) => (
+          <button key={m.id} role="tab" aria-selected={mode === m.id} className={`mode-card${mode === m.id ? " on" : ""}`} onClick={() => setMode(m.id)} disabled={busy}>
+            <span className="mode-sub mono">{m.sub}</span>
+            <b>{m.title}</b>
+            <ul>
+              {m.points.map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+          </button>
+        ))}
+      </div>
+
+      {mode === "insights" ? (
+        <Insights budgetLeft={left} onSpent={(h) => update((s) => ({ ...s, spent: s.spent + h }))} />
+      ) : (
+      <>
+
+      <Panel label="WHAT DATA DO YOU NEED?" className="request">
         <div className="request-row">
           <input className="request-input" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void find()} disabled={busy} />
           <Button size="lg" onClick={() => void find()} disabled={busy || !q.trim()}>
@@ -265,17 +309,6 @@ export function Agent() {
               {x}
             </button>
           ))}
-          <span className="budget-inline">
-            <small className="mono muted">BUDGET</small>
-            {[5, 10, 20].map((b) => (
-              <button key={b} className={b === budget ? "on" : ""} onClick={() => setBudget(b)} disabled={busy}>
-                {b} ℏ
-              </button>
-            ))}
-            <b className="mono">
-              <CountUp value={Math.max(0, left)} decimals={2} /> ℏ left
-            </b>
-          </span>
         </div>
         {filters && (
           <div className="parsed appear">
@@ -287,7 +320,9 @@ export function Agent() {
                   {FILTER_LABEL[k]}: {filters.f[k]}
                 </span>
               ))}
-            <Hash value={filters.req} label="req" />
+            {filters.req ? <Hash value={filters.req} label="req" note={ZG_NOTE} /> : <Chip>keyword fallback · not 0G</Chip>}
+            {filters.tee && <Chip tone="ok">TEE ✓</Chip>}
+            <small className="muted">Arkiv filters on domain{filters.f.region ? " and region" : ""}</small>
           </div>
         )}
       </Panel>
@@ -340,37 +375,15 @@ export function Agent() {
         {!cards.length && <p className="muted empty">Matching listings from Arkiv appear here.</p>}
       </div>
 
-      {(analysis || state.bought.length > 0) && (
+      {state.bought.length > 0 && (
         <div className="delivered-grid appear">
-          <Panel label="PRIVATE ANALYSIS" aside={<SponsorTag who="0G" />}>
-            {analysis ? (
-              <>
-                <div className="row gap-s wrap">
-                  <Chip tone="gold">cohort {analysis.bucket}</Chip>
-                  <Chip>k ≥ 50 · noised</Chip>
-                  {analysis.tee && <Chip tone="ok">TEE</Chip>}
-                  {analysis.synthetic && <Chip>synthetic demo · not from Arkiv</Chip>}
-                  {analysis.simulated && <Chip>simulated</Chip>}
-                </div>
-                <div className="themes-mini">
-                  {analysis.themes.slice(0, 4).map((t, i) => (
-                    <div key={t.name} style={{ ["--i" as string]: i }}>
-                      <span>{t.name}</span>
-                      <b className="mono">{Math.round(t.share_pct)}%</b>
-                      <i style={{ ["--w" as string]: `${Math.min(100, t.share_pct * 2)}%` }} />
-                    </div>
-                  ))}
-                </div>
-                <div className="row gap-s wrap">
-                  {analysis.reqIds.slice(0, 2).map((id) => (
-                    <Hash key={id} value={id} head={10} tail={4} label="req" />
-                  ))}
-                  {analysis.reqIds.length > 2 && <small className="muted mono">+{analysis.reqIds.length - 2} more</small>}
-                </div>
-              </>
-            ) : (
-              <p className="muted">Runs after the agent buys.</p>
-            )}
+          <Panel label="NEED THE PATTERN, NOT THE PEOPLE?" aside={<SponsorTag who="0G" />}>
+            <p className="muted">
+              Records show individual voices. To test an idea across 50+ people without seeing any of them, ask for an anonymised report: 0G analyses it inside a TEE and only noised shares come out.
+            </p>
+            <Button variant="ghost" onClick={() => setMode("insights")}>
+              Validate an idea →
+            </Button>
           </Panel>
           <Panel label="DELIVERED">
             <div className="delivered-box">
@@ -383,6 +396,8 @@ export function Agent() {
             </div>
           </Panel>
         </div>
+      )}
+      </>
       )}
     </div>
   );

@@ -31,6 +31,7 @@ export const ACCOUNTS = {
 export const PRICES = {
   record: 1, // HBAR, silver tier (fixtures.ts)
   contact: 0.5, // HBAR per paid Telegram message, via the relay bot
+  insight: 2, // HBAR per anonymised insight report (INSIGHT_PRICE in apps/server/src/api.ts)
 };
 
 export const SELLER_SHARE = 0.8;

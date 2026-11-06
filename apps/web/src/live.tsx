@@ -14,26 +14,42 @@ export type PaidRecord = { signals: string[]; events: string[]; excerpt: string;
 export type Paid = { txId: string; hashscan: string; amountHbar: string; policy?: string[]; record?: PaidRecord };
 export type Payout = Paid & { scheduleId: string; seller: string };
 export type PublicListing = { key: string; listingId: string; source: string; region: string; week: string; contactOk: boolean; signals: string[]; events: string[]; excerpt: string; domain: string; priya?: boolean };
-export type ApiReceipt = { id: string; kind: "listing" | "consent" | "revoke" | "sale" | "contact" | "payout"; title: string; chain: "arkiv" | "hedera"; tx: string; amount?: number; at: number | string; href?: string; arkivEntityKey?: string };
+export type ApiReceipt = { id: string; kind: "listing" | "consent" | "revoke" | "sale" | "contact" | "payout" | "report"; title: string; chain: "arkiv" | "hedera"; tx: string; amount?: number; at: number | string; href?: string; arkivEntityKey?: string };
 export type ListingStatus = { listingId: string; entityKey: string; consentSale: boolean; consentContact: boolean; version: number; expiresAt: string };
 
 /** 0G Private Computer evidence for one sealed call (packages/ai/src/zerog.ts). */
 export type ZgReceipt = { request_id: string; model: string; tee_verified: boolean | null; provider: string | null; latency_ms: number };
-export type UploadAnalysis = {
-  extraIdentifiers: { text: string; type: string }[];
-  maskedText: string;
-  facets: {
-    domain_path: string;
-    age_band?: string;
-    budget_consciousness?: string;
-    mentions: { subject: string; events: string[]; price_judgement?: string }[];
-  };
+/** 0G classifies text that was already masked on the device; it never masks anything itself. */
+export type Facets = {
+  domain_path: string;
+  age_band?: string;
+  budget_consciousness?: string;
+  mentions: { subject: string; events: string[]; sentiment?: number; reasons?: string[]; price_judgement?: string }[];
+};
+export type UploadAnalysis = { facets: Facets; receipt: ZgReceipt };
+export type ParsedRequest = {
+  filters: { domain: string; age?: string; region?: string; event?: string };
+  /** Insights mode: the buyer's idea as one measurable question. */
+  question?: string;
   receipt: ZgReceipt;
 };
-export type RequestFilters = { filters: { domain: string; age?: string; region?: string; event?: string }; receipt: ZgReceipt };
-export type InsightResult =
-  | { status: "ok"; cohort_bucket: string; themes: { name: string; share_pct: number }[]; receipts: ZgReceipt[]; privacy: { kMin: number; epsilon: number } }
-  | { status: "refused"; reason: string };
+export type CohortQuote = { real: number; seed: number; total: number; kMin: number; ok: boolean; priceHbar: number };
+export type InsightTheme = { name: string; share_pct: number };
+export type InsightReport = {
+  status: "ok";
+  question: string;
+  verdict: "supported" | "partly" | "not_supported" | "unclear";
+  verdict_reason: string;
+  cohort_bucket: string;
+  themes: InsightTheme[];
+  report_markdown: string;
+  receipts: ZgReceipt[];
+  privacy: { kMin: number; epsilon: number };
+  cohort: { real: number; seed: number };
+  payment: { txId: string; hashscan: string; amountHbar: string; contributorShareHbar: string };
+};
+export type InsightRefused = { status: "refused"; reason: string; cohort: { real: number; seed: number }; kMin: number };
+export type InsightResult = InsightReport | InsightRefused;
 
 export class ApiError extends Error {
   constructor(
@@ -93,10 +109,15 @@ export const api = {
   payout: () => call<Payout>("/api/payouts", { method: "POST" }),
   balances: () => call<Balances>("/api/balances"),
   analyseUpload: (maskedText: string) =>
-    call<UploadAnalysis>("/api/ai/analyse-upload", { method: "POST", body: JSON.stringify({ maskedText }), signal: AbortSignal.timeout(45000) }),
-  parseRequest: (request: string) =>
-    call<RequestFilters>("/api/ai/parse-request", { method: "POST", body: JSON.stringify({ request }), signal: AbortSignal.timeout(20000) }),
-  insight: () => call<InsightResult>("/api/ai/insight-demo", { method: "POST", body: "{}", signal: AbortSignal.timeout(60000) }),
+    call<UploadAnalysis>("/api/ai/analyse-upload", { method: "POST", body: JSON.stringify({ maskedText }), signal: AbortSignal.timeout(60000) }),
+  parseRequest: (request: string, mode: "records" | "insights") =>
+    call<ParsedRequest>("/api/ai/parse-request", { method: "POST", body: JSON.stringify({ request, mode }), signal: AbortSignal.timeout(30000) }),
+  /** How many consenting people match, before anything is paid. */
+  insightQuote: (filters: { domain: string; region?: string }) =>
+    call<CohortQuote>(`/api/insights/quote?${new URLSearchParams(Object.entries(filters).filter(([, v]) => !!v) as [string, string][])}`),
+  /** The agent pays for the report over x402; 0G runs the analysis; nothing is charged if it fails. */
+  insight: (question: string, filters: { domain: string; region?: string }, budgetLeftHbar: number) =>
+    call<InsightResult>("/agent/insight", { method: "POST", body: JSON.stringify({ question, filters, budgetLeftHbar }), signal: AbortSignal.timeout(150000) }),
 };
 
 type LiveCtx = {

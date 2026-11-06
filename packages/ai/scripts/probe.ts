@@ -103,7 +103,7 @@ try {
 }
 
 // ── 3. Keyed checks ────────────────────────────────────────────────────────────────────────
-const KEYED = ["private.<model>", "private.non_tee_refused", "upload.planted_names x3", "ratelimit.parallel5"];
+const KEYED = ["private.<model>", "private.non_tee_refused", "upload.classify x3", "ratelimit.parallel5"];
 if (!KEY) {
   for (const n of KEYED) record(n, "SKIP", "ZG_API_KEY not set");
 } else {
@@ -144,29 +144,23 @@ if (!KEY) {
     }
   }
 
-  // 3c. analyseUpload on a synthetic chat with 5 planted names, 3 runs.
-  const NAMES = ["Priya Raghavan", "Arjun Mehta", "Kavita Rao", "Rohan Iyer", "Sneha Kulkarni"];
-  const BRANDS = ["Minimalist", "The Ordinary", "Plum", "Nykaa", "Dot & Key"];
-  const CHAT = `My friend Priya Raghavan said the Minimalist niacinamide serum is good but too expensive for me.
-I used The Ordinary for 3 weeks and saw no results. Arjun Mehta suggested a cheaper Plum one.
-Kavita Rao, my dermatologist, told me to avoid strong acids. Rohan Iyer keeps buying everything on Nykaa.
-Sneha Kulkarni and I are thinking of Dot & Key sunscreen if there's a sale. Mail me at [EMAIL_1].`;
+  // 3c. analyseUpload (classification only) on a synthetic chat already masked on the device, 3 runs.
+  const CHAT = `My friend [PERSON_1] said the Minimalist niacinamide serum is good but too expensive for me.
+I used The Ordinary for 3 weeks and saw no results. [PERSON_2] suggested a cheaper Plum one.
+I'm [AGE 18–24] and I'm dropping serums; sunscreen + moisturiser under ₹400 is enough. Mail me at [EMAIL_1].`;
   for (let i = 1; i <= 3; i++) {
     try {
       const { value: out, ms } = await timed(() => analyseUpload(CHAT));
-      const found = new Set(out.extraIdentifiers.map((x) => x.text));
-      const recalled = NAMES.filter((n) => [...found].some((f) => f.includes(n) || n.includes(f)) && !out.maskedText.includes(n));
-      const brandsFlagged = BRANDS.filter((b) => found.has(b));
-      const facetsJson = JSON.stringify(out.facets).toLowerCase();
-      const namesInFacets = NAMES.flatMap((n) => n.toLowerCase().split(" ")).filter((part) => facetsJson.includes(part));
-      const good = recalled.length === NAMES.length && brandsFlagged.length === 0 && namesInFacets.length === 0 && out.maskedText.includes("[EMAIL_1]");
-      record(`upload.planted_names#${i}`, good ? "PASS" : "FAIL", `recall ${recalled.length}/${NAMES.length}, brands flagged [${brandsFlagged.join(", ")}], name parts in facets [${namesInFacets.join(", ")}], model=${out.receipt.model} tee_verified=${out.receipt.tee_verified}`, {
+      const facetsJson = JSON.stringify(out.facets);
+      const placeholders = facetsJson.match(/\[[A-Z_]+_\d+\]/g) ?? [];
+      const good = out.facets.domain_path.startsWith("beauty") && out.facets.mentions.length > 0 && placeholders.length === 0;
+      record(`upload.classify#${i}`, good ? "PASS" : "FAIL", `domain ${out.facets.domain_path}, ${out.facets.mentions.length} mentions, placeholders in facets [${placeholders.join(", ")}], model=${out.receipt.model} tee_verified=${out.receipt.tee_verified}`, {
         latency_ms: ms,
-        data: { recall: recalled.length, brands_flagged: brandsFlagged, names_in_facets: namesInFacets, identifiers: out.extraIdentifiers, masked_text: out.maskedText, facets: out.facets, receipt: out.receipt },
+        data: { facets: out.facets, receipt: out.receipt },
       });
     } catch (e) {
       const err = e as ZeroGError;
-      record(`upload.planted_names#${i}`, "FAIL", `${err.message}${err.code ? ` [${err.code}]` : ""}`);
+      record(`upload.classify#${i}`, "FAIL", `${err.message}${err.code ? ` [${err.code}]` : ""}`);
     }
   }
 

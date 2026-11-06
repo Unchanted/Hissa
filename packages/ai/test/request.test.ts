@@ -48,3 +48,23 @@ test("passes on a clean 0G error", async (t) => {
   stubFetch(t, [fail(402)]);
   await assert.rejects(parseBuyerRequest(REQUEST), (e: ZeroGError) => e.status === 402 && /balance/.test(e.message));
 });
+
+test("insights mode also returns one measurable question", async (t) => {
+  const calls = modelSays(t, { domain: "Beauty", age: "18-24", question: "Why do 18-24 year olds stop using serums, and is price the main reason?" });
+  const out = await parseBuyerRequest("Young Indians drop serums over price; would a ₹299 trial size sell?", "insights");
+  assert.equal(out.filters.domain, "beauty");
+  assert.match(out.question!, /price the main reason/);
+  assert.match(calls[0]!.body.messages[0].content, /"question"/);
+});
+
+test("insights mode falls back to the buyer's own words when no question comes back", async (t) => {
+  modelSays(t, { domain: "beauty" });
+  const out = await parseBuyerRequest("Do students quit serums because of price?", "insights");
+  assert.equal(out.question, "Do students quit serums because of price?");
+});
+
+test("records mode returns no question", async (t) => {
+  const calls = modelSays(t, { domain: "beauty", question: "x" });
+  assert.equal((await parseBuyerRequest(REQUEST)).question, undefined);
+  assert.doesNotMatch(calls[0]!.body.messages[0].content, /"question"/);
+});

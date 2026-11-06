@@ -61,7 +61,8 @@ beforeEach(() => {
     if (stage === "group") return reply({ themes: groupThemes(input.labels) }, n);
     if (stage === "report") {
       const bullets = input.themes.map((t: { name: string; share_pct: number }) => `- ${t.name}: about ${t.share_pct}%`).join("\n");
-      return reply({ markdown: `# Abandonment drivers\n\n${bullets}\n\nFigures are approximate: noise was added for privacy.\n\n**What to do:** test smaller sizes.` }, n);
+      const md = `# Abandonment drivers\n\n${bullets}\n\nFigures are approximate: noise was added for privacy.\n\n**What to do:** test smaller sizes.`;
+      return reply(input.hypothesis ? { markdown: md, verdict: "supported", verdict_reason: "Price is the largest theme at about 40%." } : { markdown: md }, n);
     }
     return new Response("{}", { status: 500 });
   }) as typeof fetch;
@@ -192,4 +193,15 @@ test("noise comes from opts.rng, counts clamp at zero", async () => {
   assert.equal(low.status, "ok");
   if (low.status !== "ok") return;
   assert.deepEqual(low.themes, [{ name: "other", share_pct: 100 }]);
+});
+
+test("a hypothesis gets a checked verdict; without one the verdict is unclear", async () => {
+  const withIdea = await runInsight({ ...base, hypothesis: "Price is why young people drop serums", items: ABANDONMENT_COHORT }, { rng: zeroNoise });
+  assert.equal(withIdea.status, "ok");
+  if (withIdea.status !== "ok") return;
+  assert.equal(withIdea.verdict, "supported");
+  assert.match(withIdea.verdict_reason, /largest theme/);
+  assert.match(calls.at(-1)!.user, /"hypothesis"/);
+  const without = await runInsight({ ...base, items: ABANDONMENT_COHORT }, { rng: zeroNoise });
+  assert.equal(without.status === "ok" && without.verdict, "unclear");
 });
