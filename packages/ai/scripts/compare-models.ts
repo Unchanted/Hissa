@@ -115,7 +115,7 @@ await job("insight.report", async () => {
       verdict_reason: out.verdict_reason.length > 20,
       report_length_ok: words >= 80 && words <= 450,
       says_approximate: /approx|noise/i.test(out.report_markdown),
-      all_tee_verified: out.receipts.every((r) => r.tee_verified === true),
+      all_sealed: out.receipts.every((r) => r.tee_verified === true || r.e2ee === "sealed"),
     },
   };
 });

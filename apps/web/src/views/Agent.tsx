@@ -75,7 +75,7 @@ export function Agent() {
       try {
         const r = await api.parseRequest(q, "records");
         f = { domain: r.filters.domain, age: r.filters.age && band(r.filters.age), region: r.filters.region, event: r.filters.event };
-        setFilters({ f, req: r.receipt.request_id, tee: r.receipt.tee_verified === true });
+        setFilters({ f, req: r.receipt.request_id, tee: r.receipt.tee_verified === true || r.receipt.e2ee === "sealed" });
         addReceipt({ kind: "inference", title: `request → filters · ${teeLabel(r.receipt)}`, chain: "0g", tx: r.receipt.request_id });
         p(`filters ready · ${teeLabel(r.receipt)} · ${r.receipt.latency_ms} ms`, "og");
       } catch (cause) {
@@ -321,7 +321,7 @@ export function Agent() {
                 </span>
               ))}
             {filters.req ? <Hash value={filters.req} label="req" note={ZG_NOTE} /> : <Chip>keyword fallback · not 0G</Chip>}
-            {filters.tee && <Chip tone="ok">TEE ✓</Chip>}
+            {filters.tee && <Chip tone="ok">sealed in TEE ✓</Chip>}
             <small className="muted">Arkiv filters on domain{filters.f.region ? " and region" : ""}</small>
           </div>
         )}

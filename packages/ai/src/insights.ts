@@ -118,10 +118,14 @@ export async function runInsight(input: InsightInput, opts: InsightOptions = {})
   const labelled = await Promise.all(
     batches.map(async (idx) => {
       const payload = {
+        task: 'Return {"labels":[{"ref":"r1","label":"..."}]} with one short reason label per item ref. Do not repeat the items.',
         question,
         items: idx.map((itemIdx, k) => ({ ref: `r${k + 1}`, text: (input.items[itemIdx]?.excerpts ?? []).join(" / ").slice(0, 1200) })),
       };
-      const { data, receipt } = await sealedJson(LABEL_SYSTEM, JSON.stringify(payload), { maxTokens: 2000 });
+      const { data, receipt } = await sealedJson(LABEL_SYSTEM, JSON.stringify(payload), {
+        maxTokens: 2000,
+        accept: (d) => Array.isArray((d as { labels?: unknown })?.labels) && ((d as { labels: unknown[] }).labels.length > 0),
+      });
       return { idx, data, receipt };
     }),
   );
@@ -144,7 +148,10 @@ export async function runInsight(input: InsightInput, opts: InsightOptions = {})
   const distinct = [...new Set(itemLabels.filter((l) => l !== NOT_RELEVANT))].sort();
   const labelTheme = new Map<string, string>();
   if (distinct.length) {
-    const { data, receipt } = await sealedJson(GROUP_SYSTEM, JSON.stringify({ question, labels: distinct }), { maxTokens: 2000 });
+    const { data, receipt } = await sealedJson(GROUP_SYSTEM, JSON.stringify({ task: 'Return {"themes":[{"name":"...","labels":["..."]}]}.', question, labels: distinct }), {
+      maxTokens: 2000,
+      accept: (d) => Array.isArray((d as { themes?: unknown })?.themes),
+    });
     receipts.push(receipt);
     const known = new Set(distinct);
     const themes = (data as { themes?: unknown })?.themes;
@@ -205,7 +212,10 @@ export async function runInsight(input: InsightInput, opts: InsightOptions = {})
   const cohort_bucket = cohortBucket(users.size);
 
   // 5. Report from the noised shares only.
-  const { data, receipt } = await sealedJson(REPORT_SYSTEM, JSON.stringify({ analysisId, question, ...(input.hypothesis ? { hypothesis: input.hypothesis } : {}), cohort_bucket, themes }), { maxTokens: 1500 });
+  const { data, receipt } = await sealedJson(REPORT_SYSTEM, JSON.stringify({ task: 'Return {"markdown":"..."' + (input.hypothesis ? ',"verdict":"...","verdict_reason":"..."' : "") + "}.", analysisId, question, ...(input.hypothesis ? { hypothesis: input.hypothesis } : {}), cohort_bucket, themes }), {
+    maxTokens: 1500,
+    accept: (d) => typeof (d as { markdown?: unknown })?.markdown === "string",
+  });
   receipts.push(receipt);
   const md = (data as { markdown?: unknown })?.markdown;
   if (typeof md !== "string" || !md.trim()) throw new ZeroGError("Model did not return a report", 502, "invalid_output");

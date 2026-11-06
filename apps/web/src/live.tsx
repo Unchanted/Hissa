@@ -18,7 +18,7 @@ export type ApiReceipt = { id: string; kind: "listing" | "consent" | "revoke" | 
 export type ListingStatus = { listingId: string; entityKey: string; consentSale: boolean; consentContact: boolean; version: number; expiresAt: string };
 
 /** 0G Private Computer evidence for one sealed call (packages/ai/src/zerog.ts). */
-export type ZgReceipt = { request_id: string; model: string; tee_verified: boolean | null; provider: string | null; latency_ms: number };
+export type ZgReceipt = { request_id: string; model: string; tee_verified: boolean | null; e2ee?: string | null; cost_usd_micro?: string | null; provider: string | null; latency_ms: number };
 /** 0G classifies text that was already masked on the device; it never masks anything itself. */
 export type Facets = {
   domain_path: string;

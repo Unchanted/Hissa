@@ -14,7 +14,7 @@ import { Button, Chip, Hash, Panel, SponsorTag } from "../components/ui";
 import { PRICES } from "../config";
 import { api, useLive, type CohortQuote, type InsightReport, type ParsedRequest } from "../live";
 import { useStore } from "../store";
-import { band, teeLabel, ZG_NOTE } from "../zerog";
+import { band, sealLabel, teeLabel, ZG_NOTE } from "../zerog";
 
 const IDEAS = [
   "Young Indians are dropping skincare serums because they cost too much — a ₹299 trial size would sell.",
@@ -96,7 +96,8 @@ export function Insights({ budgetLeft, onSpent }: { budgetLeft: number; onSpent:
       }
       onSpent(Number(r.payment.amountHbar));
       set("pay", "ok", <Hash value={r.payment.txId} head={14} tail={4} label="paid" href={r.payment.hashscan} />);
-      set("analyse", "ok", <span>{r.receipts.length} sealed calls{r.receipts.every((x) => x.tee_verified === true) ? " · TEE ✓" : ""}</span>);
+      const cost = r.receipts.reduce((a, x) => a + Number(x.cost_usd_micro ?? 0), 0);
+      set("analyse", "ok", <span>{r.receipts.length} sealed calls{r.receipts.every((x) => sealLabel(x)) ? ` · ${sealLabel(r.receipts[0]!)}` : ""}{cost ? ` · $${(cost / 1e6).toFixed(4)}` : ""}</span>);
       addReceipt({ kind: "inference", title: `insight report · ${r.receipts.length} sealed calls · ${r.receipts[0]?.model ?? "0G"}`, chain: "0g", tx: r.receipts.at(-1)?.request_id ?? "" });
       const share = Number(r.payment.contributorShareHbar);
       set("share", "ok", <span>{share} ℏ across {r.cohort.real + r.cohort.seed} people · real sellers credited on Arkiv</span>);

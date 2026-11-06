@@ -30,6 +30,10 @@ export type InferenceReceipt = {
   provider: string | null; // x_0g_trace.provider, on-chain provider address
   zg_res_key: string | null; // ZG-Res-Key header, for independent signature checks
   cost_neuron: string | null; // x_0g_trace.billing.total_cost
+  /** x_0g_trace.billing.total_cost_usd_micro (millionths of a US dollar). */
+  cost_usd_micro: string | null;
+  /** X-0G-E2EE response header: "sealed" when the Router confirms end-to-end encryption to the TEE. */
+  e2ee: string | null;
   latency_ms: number;
 };
 
@@ -72,7 +76,12 @@ function apiKey(): string {
 export async function sealedJson(
   system: string,
   user: string,
-  opts: { models?: readonly string[]; maxTokens?: number } = {},
+  opts: {
+    models?: readonly string[];
+    maxTokens?: number;
+    /** Shape check on the parsed JSON. A wrong shape is retried once, then the next model is tried. */
+    accept?: (data: unknown) => boolean;
+  } = {},
 ): Promise<{ data: unknown; receipt: InferenceReceipt }> {
   const key = apiKey();
   const models = opts.models ?? CHAT_MODELS;
@@ -82,7 +91,9 @@ export async function sealedJson(
   for (const model of models) {
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
-        return await callOnce(key, model, system, user, opts.maxTokens ?? 4000);
+        const out = await callOnce(key, model, system, user, opts.maxTokens ?? 4000);
+        if (opts.accept && !opts.accept(out.data)) throw new ZeroGError(`${model} returned JSON of the wrong shape`, 502, "invalid_output");
+        return out;
       } catch (e) {
         last = e;
         const err = e as ZeroGError;
@@ -147,6 +158,8 @@ async function callOnce(key: string, model: string, system: string, user: string
     provider: trace.provider ?? null,
     zg_res_key: res.headers.get("zg-res-key"),
     cost_neuron: trace.billing?.total_cost != null ? String(trace.billing.total_cost) : null,
+    cost_usd_micro: trace.billing?.total_cost_usd_micro != null ? String(trace.billing.total_cost_usd_micro) : null,
+    e2ee: res.headers.get("x-0g-e2ee"),
     latency_ms: Date.now() - started,
   };
   if (receipt.tee_verified === false) throw new ZeroGError("Response failed TEE verification; rejected", 502, "tee_verification_failed");
