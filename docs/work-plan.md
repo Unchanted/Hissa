@@ -120,6 +120,8 @@ Folders, `packages/shared` with the contract above, mocks for all three interfac
 
 ### Step 1 — each lane builds its core against mocks
 
+**B can start before the skeleton:** keep its package independently installable under `packages/arkiv`, using SDK-derived local storage types until A publishes `packages/shared`. These are provisional storage types, not a replacement shared contract. B does not create A's workspace, server entry point or sealing implementation.
+
 | Lane | Work | Done when |
 | --- | --- | --- |
 | A | Parsers for the six sources; own-message filter; masking and secret scan; User tab: upload → masked preview → review with two toggles → encrypt and seal → POST | A real export of each source becomes a reviewed, encrypted listing on the mock store |
@@ -144,3 +146,22 @@ Run the whole flow with real Arkiv, real 0G and real Hedera: upload → publish 
 - **No private database:** private state is sealed onto Arkiv (architecture.md §2.3). This replaces the Arkiv research note that puts seller, key and consent state in private service storage.
 - **Consent flags stay public** on the listing, as in the live test.
 - **Encryption:** `arkiv-encryption` for record bodies plus a `sealTo` helper (architecture.md §2.4). The probe's AAD envelope is not carried forward.
+
+## 6. Arkiv implementation gates (skills review, 6 November 2026)
+
+The SDK skills refine implementation details; lane ownership and the product decisions above still apply.
+
+### B's small PR sequence
+
+1. **Schemas and reads:** four typed schemas, a single-process queue primitive, trusted-writer reads, narrow listing previews, receipt queries, and bounded keyset pages. Test against the installed SDK using deterministic RPC fixtures. `paymentUsed` is a lookup only, not an atomic payment claim. This PR does not broadcast transactions or expose HTTP routes.
+2. **Confirmed writes:** implement publication, consent patches, deletion and receipt creation under exclusive writer custody. Validate exact typed inputs and combined bytes budget before wallet entry. Estimate the exact operation; set nonce, gas and gas price explicitly, enforce a spend cap, and check successful receipts. Keep the queue locked through confirmation. Preserve transaction identity and stop after uncertain submission; never blindly repeat a create. Define restart/reconciliation storage before admitting funded writes. An operational write journal is distinct from the sealed seller/key state; its storage and retention remain to be agreed before this step.
+3. **HTTP integration:** adapt to A's published shared types and sealing helper, then implement B-owned listing and receipts routes. Bound requests and pages, allowlist filters, serialize bigint values as decimal text, omit sealed blobs from public receipt DTOs, redact keyed RPC diagnostics, and test denial paths before writer entry. Complete the remaining Arkiv track documents with actual evidence.
+
+### Invariants and cross-lane decisions
+
+- **Fresh reads and provenance (B):** configure the platform creator independently; scope queries to creator and owner. Listings must be mutable for consent patches, with permissionless extension disabled. The deployment must exclusively hold the writer and never transfer listings. Creator plus current owner cannot prove content provenance after a transfer away and back; such transfers invalidate this trust policy. Treat only the SDK's explicit missing-entity result as absence; RPC/schema failures remain failures. Check fresh block expiry and consent at use, with the sealed wall-clock deadline enforced by A's release/analysis code.
+- **Paging (B):** order by `$key`, continue with a typed greater-than key predicate, use strict schema mismatch handling, validate cursors, and cap each page at 100. Multi-page results observe changing current state, not a historical snapshot; callers must bound complete scans and reject incomplete traversal.
+- **Receipt retention (B, agree with A/C):** Arkiv has no permanent entities. Even receipts expire within roughly 182 days without authorized extension. Choose receipt retention/renewal and expired-listing earnings behavior before claiming durable earnings or replay protection. Replay protection must also enforce the payment validity window rather than relying indefinitely on expiring receipts.
+- **Payment concurrency (A/C with B's storage support):** `paymentUsed` followed by a separate receipt write is not atomic. A/C must agree how a payment is bound to one request and claimed before delivery across record and insight flows, including concurrent calls, failed delivery and restarts. Serializing Arkiv writes alone does not solve this. B does not implement another lane's release or settlement logic.
+- **Signed consent/revoke requests (B, agree format with A):** bind signatures to the listing key, exact action/body, service/network context and freshness. Define replay ordering/one-time consumption before enabling mutations; a valid old consent-on request must not restore withdrawn consent. A owns shared signing types and sealing; B owns route verification and mutation admission.
+- **Evidence:** the earlier live probe established listing storage/lifecycle behavior, not the new four-entity implementation. Deterministic SDK tests, current RPC observations and funded integration tests must be reported separately. Do not claim the paid end-to-end flow until A/C's integration gates pass.
