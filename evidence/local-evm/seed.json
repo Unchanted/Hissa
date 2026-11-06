@@ -1,0 +1,51 @@
+{
+  "label": "Local EVM seed. USDC fixture, no monetary value. Test spender is deliberately exercisable.",
+  "generatedAt": "2026-11-06T07:38:32.506Z",
+  "node": {
+    "chainId": 31337,
+    "clientVersion": "HardhatNetwork/2.29.1/@nomicfoundation/edr/0.3.8"
+  },
+  "deployment": {
+    "chainId": 31337,
+    "node": "HardhatNetwork/2.29.1/@nomicfoundation/edr/0.3.8",
+    "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+    "spender": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+    "walletA": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "walletB": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "sink": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+    "deployedAtBlock": "1"
+  },
+  "txs": {
+    "deployToken": {
+      "hash": "0xbb3314b4d5f47d31574fa7ca13db8a8eb5cf33ba61b7b734837c63ae13de3997",
+      "blockNumber": "1"
+    },
+    "deploySpender": {
+      "hash": "0x68512a5806ec774857d18c284bb8c69943afaa2f229a04240cccb1548efc43ab",
+      "blockNumber": "2"
+    },
+    "mintToA": {
+      "hash": "0x26cbfcf475c2d02487a0d08c8e3045a21eb450d9f8c316823e0e7afa9f47af66",
+      "status": "success",
+      "blockNumber": "3",
+      "gasUsed": "68305"
+    },
+    "approveBtoS": {
+      "hash": "0x75ddf35f0b55131ce411ee029d8f66ab311da95185130b74b9e3f38befd953a1",
+      "status": "success",
+      "blockNumber": "4",
+      "gasUsed": "46137"
+    }
+  },
+  "pinnedFactB": {
+    "blockNumber": "4",
+    "blockHash": "0x092fed3159518e6d320db8371d3d00af26a6baa277fa7bea6d4db14291df0da3",
+    "balanceRaw": "0",
+    "allowanceRaw": "1000000000",
+    "owner": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "spender": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+    "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+    "decimals": 6,
+    "nativeGasWei": "9999999926731840396816"
+  }
+}

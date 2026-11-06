@@ -27,8 +27,8 @@ pnpm chain:proof     # writes evidence/local-evm/ordering-proof.json
 
 | Item | Status |
 | --- | --- |
-| `evidence/local-evm/seed.json` | NOT YET RUN: Foundry not installed at scaffold time |
-| `evidence/local-evm/ordering-proof.json` | NOT YET RUN |
+| `evidence/local-evm/seed.json` | Run on Hardhat Network 2.29.1 (EDR 0.3.8), chain 31337, as a stand-in because Foundry was not yet installed. Same addresses Anvil produces from the same mnemonic. To be rerun on Anvil. |
+| `evidence/local-evm/ordering-proof.json` | PASS on the same Hardhat node: transfer-first drained 800 fUSDC from B to the sink; revoke-first drain reverted with "insufficient allowance" and B kept 800. The revoke-first drain is an `eth_call` at the post-transfer state, not a mined transaction. |
 
 ## Unit tests
 
@@ -38,6 +38,10 @@ pnpm chain:proof     # writes evidence/local-evm/ordering-proof.json
 
 Checked in the in-app browser at the scaffold commit: publisher page at `http://localhost:5174` frames `http://localhost:5173/slot.html`; the frame validates INIT against the publisher registry and replies with READY only; publisher JavaScript reads `iframe.contentDocument` as `null`. The slot route sends `frame-ancestors http://localhost:5174`; the app and handoff routes send `frame-ancestors 'none'`.
 Localhost ports are distinct origins but the same site, so this is not proof of cross-site browser behavior. Deployed cross-site hosts still need testing.
+
+## Hygiene UI (local)
+
+Checked in the in-app browser against the seeded node: manual 800/500 plan confirmed; chain read at one pinned block shows B balance 0 and allowance 1000; finding shows 0 exposed now, up to 800 after funding, 300 if repayment left first. Revoke preview builds `approve(S, 0)` from B with value 0 on chain 31337; "Review in wallet" stays disabled until account B on chain 31337 is connected. Wallet signing has not been tested yet (no browser wallet in the test browser). With no node running, reads show "Unknown", never "safe".
 
 ## Partner integrations
 
