@@ -6,7 +6,24 @@ import { buildListingUpload, signListingAction, validateArkivConfig, type ArkivC
  * Hedera testnet. If it is not running, the app falls back to simulated mode.
  */
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-export const API_URL = env["VITE_API_URL"] ?? "http://localhost:4021";
+/**
+ * Where the demo API runs: `?api=https://...` (remembered in this browser) beats VITE_API_URL,
+ * which beats localhost. Lets a deployed frontend point at a tunnel or a new API host without
+ * a rebuild. `?api=reset` forgets the override.
+ */
+function apiUrl(): string {
+  try {
+    const param = new URLSearchParams(window.location.search).get("api");
+    if (param === "reset") localStorage.removeItem("hissa.api");
+    else if (param && /^https?:\/\/[^\s]+$/.test(param)) localStorage.setItem("hissa.api", param.replace(/\/$/, ""));
+    const saved = localStorage.getItem("hissa.api");
+    if (saved) return saved;
+  } catch {
+    /* storage unavailable */
+  }
+  return (env["VITE_API_URL"] ?? "http://localhost:4021").replace(/\/$/, "");
+}
+export const API_URL = apiUrl();
 
 export type Accounts = { treasury: string; agent: string; seller: string; topic: string };
 export type Balances = { agent: number; seller: number; treasury: number; owedToSeller: number };

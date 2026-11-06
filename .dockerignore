@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+.env
+.env.*
+apps/web
+evidence/private
+.git
+.claude
+dist
+**/dist
