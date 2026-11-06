@@ -145,6 +145,18 @@ export async function sealTo(servicePublicKey: string, plaintext: Uint8Array): P
   return hex(packed);
 }
 
+/** gzip in the browser (CompressionStream), base64 for the JSON record. */
+async function gzipBase64(text: string): Promise<string> {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+  const buf = new Uint8Array(await new Response(stream).arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+/** An Arkiv entity holds at most 128 KiB of bytes; keep room for the wrapped key and seller blob. */
+const MAX_CIPHERTEXT_BYTES = 120 * 1024;
+
 export async function buildListingUpload(input: ListingInput, config: ArkivConfig): Promise<SignedUpload> {
   const servicePublicKey = validateArkivConfig(config).publicKey;
   if (!Number.isInteger(input.expiresInDays) || input.expiresInDays < 1 || input.expiresInDays > 182) throw new Error("Listing expiry must be between 1 and 182 days.");
@@ -154,16 +166,21 @@ export async function buildListingUpload(input: ListingInput, config: ArkivConfi
   const recordKey = crypto.getRandomValues(new Uint8Array(32));
   const aes = await crypto.subtle.importKey("raw", recordKey, { name: "AES-GCM" }, false, ["encrypt"]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
+  // v2: the whole masked text, gzipped, plus a short preview. Everything is inside the ciphertext.
   const record = {
-    v: 1,
+    v: 2,
     listing_id: input.listingId,
     consent_deadline: consentDeadline,
     source: input.source,
     week,
     facets: input.facets,
-    excerpts: input.maskedText.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 3),
+    excerpts: input.maskedText.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 3).map((line) => line.slice(0, 300)),
+    text_gzip: await gzipBase64(input.maskedText),
   };
   const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aes, encoder.encode(JSON.stringify(record))));
+  if (iv.length + encrypted.length > MAX_CIPHERTEXT_BYTES) {
+    throw new Error(`Masked chat is too large for one Arkiv listing even compressed (${Math.round(encrypted.length / 1024)} KiB of ${MAX_CIPHERTEXT_BYTES / 1024} KiB). Split the export into smaller parts.`);
+  }
   const ciphertext = new Uint8Array(iv.length + encrypted.length);
   ciphertext.set(iv);
   ciphertext.set(encrypted, iv.length);

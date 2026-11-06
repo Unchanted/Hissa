@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { gunzipSync } from "node:zlib";
 import { ExpirationTime } from "@arkiv-network/sdk";
 import { asc, eq, gt } from "@arkiv-network/sdk/query";
 import { bytes, defineSchema, key, str, u64 } from "@arkiv-network/sdk/schema";
@@ -29,6 +30,23 @@ const encode = (value: unknown) => Buffer.from(JSON.stringify(value));
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const invalid = () => new PublicationError("invalid");
 function object(value: unknown): value is Record<string, unknown> { return !!value && typeof value === "object" && !Array.isArray(value); }
+/** Full masked text of a record: v2 carries it gzipped (text_gzip); v1 only has up to 3 excerpts. */
+function fullText(value: Record<string, unknown>): string {
+  if (value.v === 2 && typeof value.text_gzip === "string" && value.text_gzip.length <= 200_000) {
+    return gunzipSync(Buffer.from(value.text_gzip, "base64"), { maxOutputLength: 4_000_000 }).toString("utf8");
+  }
+  return Array.isArray(value.excerpts) ? value.excerpts.filter((s): s is string => typeof s === "string").join("\n") : "";
+}
+/** Lines spread across the whole text, up to `max` characters (analysis input stays small). */
+function spread(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const lines = text.split("\n").filter((l) => l.trim());
+  const step = Math.max(1, Math.ceil(text.length / max));
+  const out: string[] = [];
+  let n = 0;
+  for (let i = 0; i < lines.length && n < max; i += step) { out.push(lines[i]!); n += lines[i]!.length + 1; }
+  return out.join("\n");
+}
 function sellerInfo(value: unknown): Seller {
   if (!object(value) || typeof value.ctl_public_key !== "string" || !/^0x04[\da-f]{128}$/i.test(value.ctl_public_key) ||
     !Number.isSafeInteger(value.control_version) || Number(value.control_version) < 0 || typeof value.consent_contact !== "boolean" ||
@@ -209,8 +227,9 @@ export function makeArkivAppStore(publisher: Publisher, serviceKey: string, sell
           if (!found) continue;
           try {
             const value: unknown = JSON.parse(service.decryptRecord(service.open(found.row.wrapped_key), found.row.ciphertext).toString("utf8"));
-            if (!object(value) || value.listing_id !== preview.listing_id || !Array.isArray(value.excerpts)) continue;
-            const excerpts = value.excerpts.filter((x): x is string => typeof x === "string").slice(0, 3);
+            if (!object(value) || value.listing_id !== preview.listing_id) continue;
+            const text = spread(fullText(value), 1200);
+            const excerpts = text ? [text] : [];
             if (excerpts.length) items.push({ user_ref: `seller:${hash(found.seller.ctl_public_key).slice(0, 16)}`, excerpts });
           } catch { /* unreadable record: leave it out */ }
         }
@@ -223,14 +242,14 @@ export function makeArkivAppStore(publisher: Publisher, serviceKey: string, sell
       const found = await listing(id);
       if (!found || !found.consentSale) throw new PublicationError("conflict");
       const value: unknown = JSON.parse(service.decryptRecord(service.open(found.row.wrapped_key), found.row.ciphertext).toString("utf8"));
-      if (!object(value) || value.v !== 1 || value.listing_id !== id || value.consent_deadline !== found.seller.consent_deadline ||
+      if (!object(value) || (value.v !== 1 && value.v !== 2) || value.listing_id !== id || value.consent_deadline !== found.seller.consent_deadline ||
         value.source !== found.row.source || String(value.week) !== found.row.week.toString() ||
         !Array.isArray(value.excerpts) || value.excerpts.length > 3 || value.excerpts.some((s) => typeof s !== "string" || s.length > 16000)) throw invalid();
       const facets = object(value.facets) ? value.facets : {};
       const mentions = Array.isArray(facets.mentions) ? facets.mentions.filter(object) : [];
       return { listing_id: id, signals: [facets.age_band, facets.budget_consciousness].filter((v): v is string => typeof v === "string"),
         events: mentions.flatMap((m) => Array.isArray(m.events) ? m.events.filter((v): v is string => typeof v === "string") : []),
-        excerpt: value.excerpts.join("\n"), source: found.row.source, region: found.row.region, week: found.row.week.toString() };
+        excerpt: fullText(value), source: found.row.source, region: found.row.region, week: found.row.week.toString() };
     }),
     publicReceipts: () => queue.run(async () => ({ items: (await receipts()).map((row) => ({
       id: row.key, arkivEntityKey: row.key, kind: row.kind === "record_purchase" ? "sale" : row.kind === "contact_purchase" ? "contact" : row.kind === "insight_purchase" ? "report" : row.kind,

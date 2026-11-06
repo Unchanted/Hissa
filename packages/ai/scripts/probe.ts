@@ -90,7 +90,7 @@ try {
     fetch(`${ROUTER_URL}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json", "X-0G-Provider-Trust-Mode": "private" },
-      body: JSON.stringify({ model: CHAT_MODELS[0], verify_tee: true, max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
+      body: JSON.stringify({ model: CHAT_MODELS[0]!, verify_tee: true, max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
       signal: AbortSignal.timeout(30_000),
     }),
   );
@@ -167,7 +167,7 @@ I'm [AGE 18–24] and I'm dropping serums; sunscreen + moisturiser under ₹400 
   // 3d. 5 parallel tiny calls: rate-limit headers and latency.
   try {
     const results = await Promise.all(
-      Array.from({ length: 5 }, (_, i) => rawPrivateCall(KEY, CHAT_MODELS[0], `Reply with {"n":${i}}`, 16).catch((e: Error) => ({ status: 0, body: { error: { message: e.message } }, headers: {} as Record<string, string>, ms: -1 }))),
+      Array.from({ length: 5 }, (_, i) => rawPrivateCall(KEY, CHAT_MODELS[0]!, `Reply with {"n":${i}}`, 16).catch((e: Error) => ({ status: 0, body: { error: { message: e.message } }, headers: {} as Record<string, string>, ms: -1 }))),
     );
     const statuses = results.map((r) => r.status);
     const rl = results.map((r) => Object.fromEntries(Object.entries(r.headers).filter(([k]) => /^x-ratelimit-|^retry-after/i.test(k))));
