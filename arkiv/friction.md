@@ -22,25 +22,23 @@ SDK `@arkiv-network/sdk` 1.0.1, Rabdi testnet (chain 7794095). Longer earlier no
   - `reservePayout()` (line 261) adds a `dm.payout_intent.v1` query and compares it against receipts.
 - **Ask:** follow a `key` reference inside a query, or batch-get by many keys in one call.
 
-### Other friction (draft, awaiting team approval)
+### Also hit while building
+
+#### 3. 128 KiB per entity made us choose between the full chat and one entity
+- **Wanted:** one listing = one seller's full masked chat, encrypted.
+- **Happened:** all `bytes` on an entity share 128 KiB. A 129k-character WhatsApp export only fit after gzip inside the ciphertext (about 68 KiB); anything larger is refused in the browser before publishing ([`apps/web/src/arkiv.ts:158`](../apps/web/src/arkiv.ts)).
+- **Ask:** a documented pattern for payloads over the limit (chunked entities that reference a parent, or a pointer to blob storage such as Swarm), so every app doesn't invent its own.
+
+#### 4. No way to get the cost of a write before sending it
+- **Wanted:** check "will this listing cost more than our cap?" before signing, because larger entities cost several times more gas than small ones.
+- **Happened:** SDK 1.0.1 estimates gas inside `sendArkivTransaction` (with headroom) but exposes no estimate or dry-run call for entity writes. We wrote a custom viem transport that lets the SDK build the transaction, captures `eth_estimateGas`, and blocks signing ([`packages/arkiv/src/estimate.ts`](../packages/arkiv/src/estimate.ts)).
+- **Ask:** `estimateCreateEntity()` / `estimateUpdateEntity()` (gas and cost), or a `prepare` step that returns an unsigned transaction.
+
+#### 5. Encryption is left entirely to each app
+- **Wanted:** private payloads with public tags (the normal case for user data).
+- **Happened:** Arkiv has no read access control, which is fine, but there is no SDK helper either, so we wrote our own envelope encryption (AES-GCM payload, wrapped key, sealed seller field).
+- **Ask:** a small, audited helper for "encrypted `bytes` + public attributes" in the SDK, with a recommended envelope format.
 
 ## When something broke, what did you expect, what happened, and how can we reproduce it?
-Broken or surprising behaviour from the list below. Repros marked (code) come from reading the code and were not re-run:
-- **Cost cap / gas estimate:** expected a listing publish to succeed; got a generic "Arkiv unavailable". Repro: publish tens of KiB with `ARKIV_MAX_TX_COST_WEI` low.
-- **Stale lock:** expected a clean restart after a kill; the next start refused to open. Repro: `kill -9` the API, start it again.
-- **Concurrent writers:** expected two processes on one wallet to coexist; got a nonce conflict. Repro (code): run two publishers on one key.
-- **Missed rows mid-scan:** expected keyset paging to see every row; keys inserted below the cursor were missed. Repro (code): insert while paging.
 
-Full list:
-
-- **No read ACL.** All attributes and `bytes` are public; the schema tag is a namespace, not access control. We encrypt (AES-GCM) in the browser and keep only coarse tags public.
-- **128 KiB per entity.** All `bytes` values share it. We gzip the full masked chat inside the ciphertext and cap ciphertext at 120 KiB ([`apps/web/src/arkiv.ts:158`](../apps/web/src/arkiv.ts)); a 129k-character export is about 68 KiB. Bigger exports must be split.
-- **Gas estimate vs cost cap looked like "Arkiv unavailable".** Larger entities need over 1M gas; the estimate exceeded our `ARKIV_MAX_TX_COST_WEI` and the API reported a generic unavailable error. Repro: publish a listing of tens of KiB with a low cap. We raised the cap to 2e16 wei ([`.env.example`](../.env.example)). Ask: a typed error that includes estimated cost.
-- **Stale `publisher.lock` after a kill.** `kill -9` on the API leaves the lock; the next start refuses to open until an operator removes it by hand ([`journal.ts`](../packages/arkiv/src/journal.ts)).
-- **Single-writer nonce ordering.** Two writers on one wallet collide on nonces. We serialise through one process ([`serial-queue.ts`](../packages/arkiv/src/serial-queue.ts)) and journal every operation. Ask: nonce-safe multi-writer guidance or a built-in queue.
-- **Expiry cap about 182 days.** `ExpirationTime.max()` is not permanent, so receipts and earnings history need a renewal plan ([`publisher.ts:40`](../packages/arkiv/src/publisher.ts)).
-- **Pagination has no snapshot.** `$key` keyset paging avoids offset shifts, but keys inserted below the cursor are missed mid-scan.
-- **Deleted or expired data is not erased.** Ciphertext stays in transaction history, so revoke cannot recall bytes already read.
-- **Public RPC is heavily rate limited without an access key** (the SDK prints this warning). Fine for the judge query, tight for a live app.
-- **Mutable provenance.** Creator/owner checks cannot detect transfer-away, edit, transfer-back. We rely on exclusive wallet custody.
-- **No atomic check-then-write.** Payment-dedup lookup (`eq("payment_tx")`) and the receipt write are separate steps; we guard with the serial queue and a settlement outbox ([`settlement-outbox.ts`](../packages/arkiv/src/settlement-outbox.ts)).
+- **Large listing failed to publish.** Expected: a 68 KiB listing publishes like a 5 KiB one. Happened: the write needed well over 1M gas, more than the cost cap we had picked from small test entities, so the publish was refused. The cap was ours, but we only found the real cost by failing (see item 4). Repro: publish an entity with ~60 KiB of `bytes`, compare its gas to a ~5 KiB entity (219,256 gas in our [test findings](../docs/arkiv-test-findings-2026-11-06.md)).
