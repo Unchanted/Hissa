@@ -1,0 +1,1055 @@
+[
+ {
+  "title": "Oily skin, sunscreen and serum on a student budget",
+  "create_time": 1762300000,
+  "conversation_id": "demo-om-1",
+  "mapping": {
+   "root": {
+    "id": "root",
+    "message": null,
+    "parent": null,
+    "children": [
+     "n1"
+    ]
+   },
+   "n1": {
+    "id": "n1",
+    "message": {
+     "id": "n1",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762318000,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Hi, I'm Om Dwivedi, 22, final-year student living in Andheri, Mumbai. My face gets super oily by afternoon and I keep getting pimples on my chin and forehead. Monsoon humidity makes it worse. Where do I even start?"
+      ]
+     }
+    },
+    "parent": "root",
+    "children": [
+     "n2"
+    ]
+   },
+   "n2": {
+    "id": "n2",
+    "message": {
+     "id": "n2",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762318036,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Hi Om. For oily, acne-prone skin a simple routine works best: gentle gel cleanser, light moisturiser, and sunscreen every morning. Add one active at a time so you can tell what helps."
+      ]
+     }
+    },
+    "parent": "n1",
+    "children": [
+     "n3"
+    ]
+   },
+   "n3": {
+    "id": "n3",
+    "message": {
+     "id": "n3",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762336036,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Right now I just wash with whatever face wash my brother left, then nothing. No moisturiser because I feel it will make me oilier."
+      ]
+     }
+    },
+    "parent": "n2",
+    "children": [
+     "n4"
+    ]
+   },
+   "n4": {
+    "id": "n4",
+    "message": {
+     "id": "n4",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762336072,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Skipping moisturiser can actually make skin produce more oil. A gel or water-based one is fine for oily skin. Start with a mild cleanser and a lightweight gel moisturiser."
+      ]
+     }
+    },
+    "parent": "n3",
+    "children": [
+     "n5"
+    ]
+   },
+   "n5": {
+    "id": "n5",
+    "message": {
+     "id": "n5",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762354072,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "My budget is tight yaar, I can spend maybe ₹500 per month on skincare in total. Pocket money plus a little from tuitions."
+      ]
+     }
+    },
+    "parent": "n4",
+    "children": [
+     "n6"
+    ]
+   },
+   "n6": {
+    "id": "n6",
+    "message": {
+     "id": "n6",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762354108,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "That's workable. Prioritise cleanser, sunscreen and one active. Many Indian D2C brands have good options under ₹400 each, so you can rotate rather than buy everything at once."
+      ]
+     }
+    },
+    "parent": "n5",
+    "children": [
+     "n7"
+    ]
+   },
+   "n7": {
+    "id": "n7",
+    "message": {
+     "id": "n7",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762372108,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "My friend Priya swears by niacinamide for oil control. She uses the Minimalist 10% one. Is that okay for someone my age?"
+      ]
+     }
+    },
+    "parent": "n6",
+    "children": [
+     "n8"
+    ]
+   },
+   "n8": {
+    "id": "n8",
+    "message": {
+     "id": "n8",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762372144,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Niacinamide at 5 to 10% is commonly used for oil control and marks. Start with 5% if your skin is sensitive, use it once a day, and patch test first."
+      ]
+     }
+    },
+    "parent": "n7",
+    "children": [
+     "n9"
+    ]
+   },
+   "n9": {
+    "id": "n9",
+    "message": {
+     "id": "n9",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762390144,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Priya paid ₹599 for the 30ml bottle on Nykaa. That's more than my entire monthly budget lol. Is there any cheaper way to try it?"
+      ]
+     }
+    },
+    "parent": "n8",
+    "children": [
+     "n10"
+    ]
+   },
+   "n10": {
+    "id": "n10",
+    "message": {
+     "id": "n10",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762390180,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Yes: look for 5% versions or smaller 10ml sizes, which are often around ₹250 to ₹350. Also compare prices on Amazon and the brand sites, since discounts vary."
+      ]
+     }
+    },
+    "parent": "n9",
+    "children": [
+     "n11"
+    ]
+   },
+   "n11": {
+    "id": "n11",
+    "message": {
+     "id": "n11",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762408180,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Okay. Also my other friend Rahul says I should just use Multani mitti and lemon. Is that a good idea?"
+      ]
+     }
+    },
+    "parent": "n10",
+    "children": [
+     "n12"
+    ]
+   },
+   "n12": {
+    "id": "n12",
+    "message": {
+     "id": "n12",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762408216,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "I'd avoid lemon on the face, it can irritate and cause dark patches in the sun. Multani mitti occasionally is okay, but it can dry skin out. A proper cleanser and sunscreen are safer."
+      ]
+     }
+    },
+    "parent": "n11",
+    "children": [
+     "n13"
+    ]
+   },
+   "n13": {
+    "id": "n13",
+    "message": {
+     "id": "n13",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762426216,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Fine, no lemon. Can I also ask, how long before I see results with a serum? I get impatient."
+      ]
+     }
+    },
+    "parent": "n12",
+    "children": [
+     "n14"
+    ]
+   },
+   "n14": {
+    "id": "n14",
+    "message": {
+     "id": "n14",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762426252,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Usually 4 to 8 weeks for oil and texture, longer for marks. Take a photo in the same light today so you can compare honestly later."
+      ]
+     }
+    },
+    "parent": "n13",
+    "children": [
+     "n15"
+    ]
+   },
+   "n15": {
+    "id": "n15",
+    "message": {
+     "id": "n15",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762444252,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "My number is +91 98200 12345 if you can send me a routine PDF, otherwise just type it here."
+      ]
+     }
+    },
+    "parent": "n14",
+    "children": [
+     "n16"
+    ]
+   },
+   "n16": {
+    "id": "n16",
+    "message": {
+     "id": "n16",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762444288,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "I can't send files or messages to phone numbers, but here is a simple routine in text. Morning: cleanser, light moisturiser, sunscreen SPF 50. Night: cleanser, moisturiser, and the serum on alternate days to begin with."
+      ]
+     }
+    },
+    "parent": "n15",
+    "children": [
+     "n17"
+    ]
+   },
+   "n17": {
+    "id": "n17",
+    "message": {
+     "id": "n17",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762618000,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Back again. I started the cleanser, now need a sunscreen. It has to be non-greasy because of Mumbai heat. I looked at Minimalist SPF 50, Dot & Key watermelon SPF 50 and Deconstruct SPF 50. Which one for oily skin?"
+      ]
+     }
+    },
+    "parent": "n16",
+    "children": [
+     "n18"
+    ]
+   },
+   "n18": {
+    "id": "n18",
+    "message": {
+     "id": "n18",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762618036,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "All three are lightweight gels or fluids. Minimalist and Deconstruct tend to feel matte and are fragrance free, Dot & Key is fruitier in scent. For acne-prone skin, fragrance-free and non-comedogenic is the safer pick."
+      ]
+     }
+    },
+    "parent": "n17",
+    "children": [
+     "n19"
+    ]
+   },
+   "n19": {
+    "id": "n19",
+    "message": {
+     "id": "n19",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762636036,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Prices on Nykaa: Minimalist ₹399, Deconstruct ₹449, Dot & Key ₹495. All slightly above what I wanted to spend. The Derma Co has one at ₹349 too."
+      ]
+     }
+    },
+    "parent": "n18",
+    "children": [
+     "n20"
+    ]
+   },
+   "n20": {
+    "id": "n20",
+    "message": {
+     "id": "n20",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762636072,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "The Derma Co's gel sunscreen is cheaper and well reviewed for oily skin. Check the amount in grams, since a cheaper tube may hold less product, and compare the price per 50 g."
+      ]
+     }
+    },
+    "parent": "n19",
+    "children": [
+     "n21"
+    ]
+   },
+   "n21": {
+    "id": "n21",
+    "message": {
+     "id": "n21",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762654072,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Hmm, good point, Minimalist is 50g for ₹399 and the Derma Co one is 50g for ₹349. So Derma Co is cheaper but more people complain of a white cast, right?"
+      ]
+     }
+    },
+    "parent": "n20",
+    "children": [
+     "n22"
+    ]
+   },
+   "n22": {
+    "id": "n22",
+    "message": {
+     "id": "n22",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762654108,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Some reviewers do mention a slight cast on deeper skin tones. If you are wheatish you may notice it less with a gel-cream formula. A sample or small size would settle it."
+      ]
+     }
+    },
+    "parent": "n21",
+    "children": [
+     "n23"
+    ]
+   },
+   "n23": {
+    "id": "n23",
+    "message": {
+     "id": "n23",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762672108,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "I added the Minimalist SPF and the 10% niacinamide serum to my Nykaa cart. Total came to ₹998 and then ₹60 shipping fee because I'm below the free shipping limit. That is too much, I'm leaving it."
+      ]
+     }
+    },
+    "parent": "n22",
+    "children": [
+     "n24"
+    ]
+   },
+   "n24": {
+    "id": "n24",
+    "message": {
+     "id": "n24",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762672144,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "That's a sensible call if it breaks your monthly limit. Options: buy one product now, pick a store with free shipping, or wait for a sale. Which one matters most to you this month?"
+      ]
+     }
+    },
+    "parent": "n23",
+    "children": [
+     "n25"
+    ]
+   },
+   "n25": {
+    "id": "n25",
+    "message": {
+     "id": "n25",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762690144,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Sunscreen matters more I think. But even ₹399 plus ₹60 shipping feels bad. Let me check Amazon."
+      ]
+     }
+    },
+    "parent": "n24",
+    "children": [
+     "n26"
+    ]
+   },
+   "n26": {
+    "id": "n26",
+    "message": {
+     "id": "n26",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762690180,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Amazon often has lower prices with free delivery on larger orders, but check the seller is the official brand store to avoid fakes."
+      ]
+     }
+    },
+    "parent": "n25",
+    "children": [
+     "n27"
+    ]
+   },
+   "n27": {
+    "id": "n27",
+    "message": {
+     "id": "n27",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762708180,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "On Amazon the Minimalist sunscreen is ₹379 with free delivery for Prime only. I don't have Prime. Without it delivery is ₹40. So basically same thing. Ugh."
+      ]
+     }
+    },
+    "parent": "n26",
+    "children": [
+     "n28"
+    ]
+   },
+   "n28": {
+    "id": "n28",
+    "message": {
+     "id": "n28",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762708216,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Then the saving is small. If the brand website runs a free shipping threshold, a combined order with a friend could split the fee."
+      ]
+     }
+    },
+    "parent": "n27",
+    "children": [
+     "n29"
+    ]
+   },
+   "n29": {
+    "id": "n29",
+    "message": {
+     "id": "n29",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762726216,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Maybe I'll ask Priya to order with me. She also wants the sunscreen. But then I wait for her paycheque, can't do right now. I closed the tab and abandoned the cart for now."
+      ]
+     }
+    },
+    "parent": "n28",
+    "children": [
+     "n30"
+    ]
+   },
+   "n30": {
+    "id": "n30",
+    "message": {
+     "id": "n30",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762726252,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "That's fine, nothing is lost. Cart prices can change though, so note the product names rather than relying on the saved cart."
+      ]
+     }
+    },
+    "parent": "n29",
+    "children": [
+     "n31"
+    ]
+   },
+   "n31": {
+    "id": "n31",
+    "message": {
+     "id": "n31",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762744252,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Also I looked at the Dot & Key serum, 10ml for ₹445 but it's a vitamin C one. Too expensive for a small bottle honestly. I don't think it's worth it for me."
+      ]
+     }
+    },
+    "parent": "n30",
+    "children": [
+     "n32"
+    ]
+   },
+   "n32": {
+    "id": "n32",
+    "message": {
+     "id": "n32",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762744288,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Per ml that is costly. Since your goal is oil control and marks, niacinamide gives better value for your budget than vitamin C right now."
+      ]
+     }
+    },
+    "parent": "n31",
+    "children": [
+     "n33"
+    ]
+   },
+   "n33": {
+    "id": "n33",
+    "message": {
+     "id": "n33",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762762288,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "I tried a friend's Derma Co sunscreen for two days at college near Bandra and it felt okay, not sticky. Slight white cast but fine in the shade."
+      ]
+     }
+    },
+    "parent": "n32",
+    "children": [
+     "n34"
+    ]
+   },
+   "n34": {
+    "id": "n34",
+    "message": {
+     "id": "n34",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762762324,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Good to know. Two days is a short trial, so watch for new bumps over a week. If it suits you, the Derma Co one fits your budget best."
+      ]
+     }
+    },
+    "parent": "n33",
+    "children": [
+     "n35"
+    ]
+   },
+   "n35": {
+    "id": "n35",
+    "message": {
+     "id": "n35",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762780324,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Honestly the thing I want is a small trial pack. I don't want to commit ₹400 on something that might break me out."
+      ]
+     }
+    },
+    "parent": "n34",
+    "children": [
+     "n36"
+    ]
+   },
+   "n36": {
+    "id": "n36",
+    "message": {
+     "id": "n36",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762780360,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Trial or travel sizes exist for several brands, usually 15 to 30 ml, and that is a very reasonable way to test oily-skin products before buying a full tube."
+      ]
+     }
+    },
+    "parent": "n35",
+    "children": [
+     "n37"
+    ]
+   },
+   "n37": {
+    "id": "n37",
+    "message": {
+     "id": "n37",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1762798360,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Yeah, a ₹199 mini would be perfect. Why don't brands make that more often? Even for travel I'd buy it."
+      ]
+     }
+    },
+    "parent": "n36",
+    "children": [
+     "n38"
+    ]
+   },
+   "n38": {
+    "id": "n38",
+    "message": {
+     "id": "n38",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1762798396,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Smaller packs cost brands more per ml, so they often skip them. But demand from students on tight budgets is real, and some brands do launch minis when asked."
+      ]
+     }
+    },
+    "parent": "n37",
+    "children": [
+     "n39"
+    ]
+   },
+   "n39": {
+    "id": "n39",
+    "message": {
+     "id": "n39",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1763118000,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Update: I finally ordered. Found a Minimalist 5% niacinamide mini 10ml on Amazon for ₹249 with free delivery on a ₹499 order, so I added a 30ml gel cleanser to cross the limit. Total ₹499. Is that smart?"
+      ]
+     }
+    },
+    "parent": "n38",
+    "children": [
+     "n40"
+    ]
+   },
+   "n40": {
+    "id": "n40",
+    "message": {
+     "id": "n40",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1763118036,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "That works well: the mini lets you test without a big spend, and the cleanser is something you need anyway. Just make sure the sellers are the official brand stores."
+      ]
+     }
+    },
+    "parent": "n39",
+    "children": [
+     "n41"
+    ]
+   },
+   "n41": {
+    "id": "n41",
+    "message": {
+     "id": "n41",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1763136036,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "I paid with UPI, my email for the order is om.dwivedi.demo@example.com. The order arrives Thursday in Andheri."
+      ]
+     }
+    },
+    "parent": "n40",
+    "children": [
+     "n42"
+    ]
+   },
+   "n42": {
+    "id": "n42",
+    "message": {
+     "id": "n42",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1763136072,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Great, keep your order confirmation. When it arrives, patch test the serum on your jaw for a couple of nights before using it on your whole face."
+      ]
+     }
+    },
+    "parent": "n41",
+    "children": [
+     "n43"
+    ]
+   },
+   "n43": {
+    "id": "n43",
+    "message": {
+     "id": "n43",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1763154072,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "The mini arrived. Patch test done, no redness. Using it at night on alternate days like you said, plus the cleanser. Sunscreen I still use Priya's Derma Co until I buy my own."
+      ]
+     }
+    },
+    "parent": "n42",
+    "children": [
+     "n44"
+    ]
+   },
+   "n44": {
+    "id": "n44",
+    "message": {
+     "id": "n44",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1763154108,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Sounds like a careful approach. Sunscreen is the single most important step, so prioritise buying your own SPF soon, in small amounts if possible."
+      ]
+     }
+    },
+    "parent": "n43",
+    "children": [
+     "n45"
+    ]
+   },
+   "n45": {
+    "id": "n45",
+    "message": {
+     "id": "n45",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1763172108,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "After 10 days my oiliness is a bit lower and fewer new pimples. Not a miracle but honestly noticeable. Rahul asked what I changed."
+      ]
+     }
+    },
+    "parent": "n44",
+    "children": [
+     "n46"
+    ]
+   },
+   "n46": {
+    "id": "n46",
+    "message": {
+     "id": "n46",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1763172144,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "That timeline matches expectations. Keep photos monthly and stay consistent. Avoid adding another active just yet."
+      ]
+     }
+    },
+    "parent": "n45",
+    "children": [
+     "n47"
+    ]
+   },
+   "n47": {
+    "id": "n47",
+    "message": {
+     "id": "n47",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1763190144,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Now the 10ml is nearly done. A full 30ml is ₹599 which is too expensive for me, I would only buy the mini again. Any alternative at a lower price?"
+      ]
+     }
+    },
+    "parent": "n46",
+    "children": [
+     "n48"
+    ]
+   },
+   "n48": {
+    "id": "n48",
+    "message": {
+     "id": "n48",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1763190180,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Compare per ml: other brands at 10% niacinamide in 20ml packs sit near ₹350 to ₹450. The Derma Co and Deconstruct both have options. Check ingredient percentages, not just the brand name."
+      ]
+     }
+    },
+    "parent": "n47",
+    "children": [
+     "n49"
+    ]
+   },
+   "n49": {
+    "id": "n49",
+    "message": {
+     "id": "n49",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1763208180,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "I'll probably repurchase the ₹249 mini and a ₹349 Derma Co sunscreen next month. That fits ₹500 if I skip one thing. Is the order okay?"
+      ]
+     }
+    },
+    "parent": "n48",
+    "children": [
+     "n50"
+    ]
+   },
+   "n50": {
+    "id": "n50",
+    "message": {
+     "id": "n50",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1763208216,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Yes, sunscreen first, then a serum refill. If a sale drops the price, buy then. You're building a good routine at a sensible cost."
+      ]
+     }
+    },
+    "parent": "n49",
+    "children": [
+     "n51"
+    ]
+   },
+   "n51": {
+    "id": "n51",
+    "message": {
+     "id": "n51",
+     "author": {
+      "role": "user"
+     },
+     "create_time": 1763226216,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "One last thing, would I recommend all this to my cousin? Yes, mostly the sunscreen and the mini serum, but I'd tell her to avoid paying shipping and to start small."
+      ]
+     }
+    },
+    "parent": "n50",
+    "children": [
+     "n52"
+    ]
+   },
+   "n52": {
+    "id": "n52",
+    "message": {
+     "id": "n52",
+     "author": {
+      "role": "assistant"
+     },
+     "create_time": 1763226252,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "That is solid advice: start small, patch test, and track results over several weeks."
+      ]
+     }
+    },
+    "parent": "n51",
+    "children": []
+   }
+  }
+ }
+]

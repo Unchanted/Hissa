@@ -1,6 +1,6 @@
 /**
- * Demo configuration. Everything on-chain in this build is simulated in the
- * browser; numbers follow apps/server/src/fixtures.ts so the real build matches.
+ * Demo configuration. Payments, listings and receipts are real (Hedera testnet,
+ * Arkiv Rabdi) via the demo API; prices follow apps/server/src/fixtures.ts.
  */
 export const BRAND = {
   name: "HISSA",
@@ -12,11 +12,11 @@ export const BRAND = {
 /** Shows हिस्सा next to the wordmark (brand artwork). Set false for English-only text. */
 export const SHOW_DEVANAGARI = true;
 
-/** Shows a small "simulated" badge in the nav. Turn off for a clean recording. */
+/** Shows an "API offline" badge in the nav when the demo API is unreachable. */
 export const SHOW_SIM_BADGE = true;
 
 /**
- * Hedera testnet accounts (real, from .env). Used in simulated mode; in live mode
+ * Hedera testnet accounts (real, from .env). Shown before the API answers; in live mode
  * the IDs come from the demo API's /health.
  */
 export const ACCOUNTS = {

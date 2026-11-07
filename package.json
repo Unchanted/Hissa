@@ -1,6 +1,7 @@
 {
   "name": "user-owned-data-marketplace",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=20"

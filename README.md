@@ -137,25 +137,46 @@ until the Arkiv and 0G lanes are wired in.
 
 ## Arkiv
 
-The web app now publishes real encrypted listings, discovers them from Rabdi, signs consent/revoke requests, and reads durable activity/payment receipts. Seller earnings come from Arkiv receipts rather than an in-memory balance map.
+**Built from scratch at ETHGlobal Mumbai.** The repo was created at the event on 6 Nov 2026 (first commit `5cd6b6a`); the team pivoted to Hissa at `aaf1457`. All Arkiv work was done at the event.
+
+The web app publishes real encrypted listings to Arkiv (Rabdi testnet, chain 7794095) with `@arkiv-network/sdk`, discovers them by domain/region, signs consent/revoke requests, and reads durable activity/payment receipts. Seller earnings, the Public Ledger, buyer discovery and insight cohorts all read Arkiv; there is no other database.
+
+**Writer wallet (creator and owner of every entity):** [`0x0F58223AAfF9C6e2534aaD09a996048175C04C96`](https://rabdi.explorer.arkiv.network/address/0x0F58223AAfF9C6e2534aaD09a996048175C04C96). Example listing tx: [`0x735f8761...6146d`](https://rabdi.explorer.arkiv.network/tx/0x735f87614fbfff16006b9c04e546a647716322e2dca072cbfc0bf9932526146d).
+
+**Run one query (read-only, no key):**
+
+```sh
+npm --prefix packages/arkiv ci
+node packages/arkiv/scripts/query-listings.mjs [domain]
+```
+
+Output on 7 Nov 2026:
+
+```
+chain 7794095 (Rabdi), block 315487, writer 0x0F58223AAfF9C6e2534aaD09a996048175C04C96
+{"listing_id":"lst_eebc6757","domain":"education","region":"IN","consent_sale":true,"consent_insights":true,...}
+{"listing_id":"lst_42f7f21d","domain":"beauty","region":"IN-west","consent_sale":true,"consent_insights":true,...}
+2 listing(s)
+dm.app_receipt.v1: 5 receipt(s) {"insight_purchase":3,"listing":2}
+```
+
+**Arkiv docs (one file per judging criterion):** [schema](arkiv/schema.md) · [friction / feedback](arkiv/friction.md) · [reach](arkiv/reach.md) · [why Arkiv](arkiv/why-arkiv.md) · [how we use Arkiv](arkiv/how-you-use-arkiv.md)
+
+**Run the app locally:**
 
 ```sh
 npm ci
 npm --prefix packages/arkiv ci
 npm --prefix apps/web ci
 npm run arkiv:setup      # preserves existing keys; creates service key and browser pin, sends no transactions
-npm run demo:api        # terminal 1; review .env transaction cap and existing Hedera testnet configuration first
+npm run demo:api        # terminal 1; review .env transaction cap and Hedera testnet configuration first
 npm run demo:web        # terminal 2; restart Vite after key setup
 ```
 
-Use **sample export** or a supported ChatGPT/Claude JSON file, review the masked text, and publish. Keep the browser session: it contains the listing control key and any pending signed request. Publication success, consent changes and deletion use confirmed Arkiv transaction hashes. The live agent and ledger use the server API; they do not invent payment results after an API error.
+Use **sample export** or a supported ChatGPT/Claude JSON file, review the masked text, and publish. Keep the browser session: it holds the listing control key and any pending signed request. Publication, consent changes and deletion show confirmed Arkiv transaction hashes. The agent and ledger use the server API and do not invent payment results after an API error.
 
-The API binds to loopback and permits the local Vite origins. This remains a single-seller testnet demo, not a publicly authenticated production deployment. The separate 0G insights demonstration still uses its synthetic cohort; it is labelled accordingly and does not analyse uploaded records. Local masking currently covers basic emails/phone numbers, with manual review; unsupported export formats are rejected. No new funded end-to-end rehearsal was run as part of this integration.
+The live API runs on Fly.io at https://api.hissa.tech (one always-on machine with a volume for the Arkiv journal; see [docs/deploy.md](docs/deploy.md)). Funded end-to-end runs were done on it: listings `lst_eebc6757` and `lst_42f7f21d` were published, and a paid insight report settled on Hedera with its receipts written to Arkiv. It is still a single-seller testnet demo, not an authenticated production service. The 0G insights flow mixes real consenting Arkiv listings with a synthetic seed cohort and labels it. Masking runs on the device: an in-browser NER model (`Xenova/bert-base-NER`) hides names and places, rules hide emails, phone numbers and IDs, and the seller can add names it missed; unsupported export formats are rejected. A full demo walkthrough with a synthetic export is in [docs/demo-scenario.md](docs/demo-scenario.md).
 
-The earlier encrypted-storage and lifecycle probe evidence remains in `evidence/`. See [Arkiv package documentation](packages/arkiv/README.md) for protocol and recovery details.
+Earlier encrypted-storage and lifecycle probe evidence is in `evidence/`. See the [Arkiv package documentation](packages/arkiv/README.md) for protocol and recovery details. The funded Rabdi writer key stays in the ignored local `.env` / Fly secrets; the synthetic record/key journal stays in ignored `evidence/private/`. `.env.example` lists configuration names without secrets.
 
-The funded Rabdi writer key remains in the ignored local `.env`; the synthetic
-record/key journal remains in ignored `evidence/private/`. Keep both private.
-`.env.example` lists configuration names without secrets.
-
-AI assistance was used for research, probe implementation and validation.
+**How we used AI.** Claude Code (Anthropic) helped write code, refactors, tests and docs, including the Arkiv research and probes; the team reviewed and ran the results. At runtime the product uses 0G-hosted models (see the 0G section) for classification and insight reports.

@@ -3,7 +3,7 @@ import { buildListingUpload, signListingAction, validateArkivConfig, type ArkivC
 
 /**
  * Connection to the demo API (apps/server/src/api.ts), which moves real HBAR on
- * Hedera testnet. If it is not running, the app falls back to simulated mode.
+ * Hedera testnet. If it is not reachable, paid actions refuse instead of faking results.
  */
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
 /**
