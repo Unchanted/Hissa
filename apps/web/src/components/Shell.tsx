@@ -142,10 +142,10 @@ function AccountPill({ route }: { route: Route }) {
   );
 }
 
-/** LIVE when the demo API is reachable (real Hedera testnet payments), otherwise SIMULATED. */
+/** LIVE when the demo API is reachable (real Hedera testnet payments), otherwise API OFFLINE. */
 function ModeBadge() {
   const { live, checked } = useLive();
   if (!checked) return null;
   if (live) return <span className="sim live" title="Payments settle on Hedera testnet">LIVE · HEDERA TESTNET</span>;
-  return SHOW_SIM_BADGE ? <span className="sim" title="Start the demo API for real payments: npm run demo:api">SIMULATED</span> : null;
+  return SHOW_SIM_BADGE ? <span className="sim" title="Marketplace API unreachable: paid actions are disabled">API OFFLINE</span> : null;
 }

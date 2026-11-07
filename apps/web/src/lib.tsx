@@ -1,4 +1,4 @@
-/** Small helpers for the simulated chain data used by this frontend-only preview. */
+/** Small helpers: ids, hex and formatting used across the views. */
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 

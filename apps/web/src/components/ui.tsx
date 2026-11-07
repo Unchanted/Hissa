@@ -81,7 +81,7 @@ export function Panel({ children, label, className = "", aside }: { children: Re
   );
 }
 
-/** A hash or ID shown short, full value on hover, click to copy. Marked as simulated. */
+/** A hash or ID shown short, full value on hover, click to copy. */
 export function Hash({ value, head = 8, tail = 6, label, href, note }: { value: string; head?: number; tail?: number; label?: string; href?: string; note?: string }) {
   const [copied, setCopied] = useState(false);
   if (href)
@@ -96,7 +96,7 @@ export function Hash({ value, head = 8, tail = 6, label, href, note }: { value: 
     <button
       type="button"
       className="hash"
-      title={`${value}\n${note ?? "(simulated in this preview — click to copy)"}`}
+      title={`${value}\n${note ?? "(click to copy)"}`}
       onClick={() => {
         navigator.clipboard?.writeText(value).catch(() => undefined);
         setCopied(true);
