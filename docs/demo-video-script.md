@@ -11,7 +11,7 @@ Roughly 150 spoken words per minute, so about 430 words of voice-over in total. 
 ## 2. Pre-flight checklist (before hitting record)
 
 - [ ] Open https://hissa.tech once and let the on-device model finish (about 110 MB, cached afterwards). Look for "on-device model ready" on the Seller page.
-- [ ] Health check in a tab: https://hissa-mumbai-api.fly.dev/health returns OK. The nav should read `LIVE · HEDERA TESTNET`.
+- [ ] Health check in a tab: https://api.hissa.tech/health returns OK. The nav should read `LIVE · HEDERA TESTNET`.
 - [ ] Agent budget (the "AGENT BUDGET" control on the Buyer page) is high enough for 2 ℏ + 1 ℏ + spare. The buyer agent is topped up when below 12 ℏ; confirm the balance in the header.
 - [ ] Reset state with the **↺** button in the nav, so Seller starts empty and the Ledger is clean for the take.
 - [ ] Have the sample export ready: use the **Use sample export** button (do not drag in a real file).
@@ -46,7 +46,7 @@ If time is tight: drop the **Pay out** click and the HashScan click-through; kee
 - **0G report (~24-40 s):** do not stay silent. Narrate the flow panel step by step: "0G labels each record, groups them into themes, one vote per seller, then Laplace noise, then writes the report." This is the planned voice-over; cut dead time in editing so the final stays under 3:00.
 - **0G classification slow (>10 s):** "The masked text is being classified inside the TEE; that's a few seconds." Cut in editing.
 - **Model still downloading:** this should never happen if pre-flight was done. If it does, stop, wait for "on-device model ready", re-record the take.
-- **API unavailable:** the app shows "Marketplace API unavailable" and refuses rather than faking. Check https://hissa-mumbai-api.fly.dev/health, then retry. Do not narrate a fake success.
+- **API unavailable:** the app shows "Marketplace API unavailable" and refuses rather than faking. Check https://api.hissa.tech/health, then retry. Do not narrate a fake success.
 - **Insight returns Unclear / different verdict:** read the verdict as shown ("Verdict: <whatever it says>, patterns not people"). Do not claim "Partly supported" unless it appears.
 - **Arkiv publish slow:** say "Arkiv is confirming the transaction on the Rabdi testnet" and cut in editing.
 - **A take fails mid-way:** press ↺, re-run only that section, and stitch in editing.
