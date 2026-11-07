@@ -2928,3 +2928,12 @@ a.hash.live:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* Upload step: keep the chat to a fixed-height box that scrolls inside. */
+.chat.chat-scroll {
+  max-height: 440px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-width: thin;
+}

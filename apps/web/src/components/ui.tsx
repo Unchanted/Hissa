@@ -86,7 +86,7 @@ export function Hash({ value, head = 8, tail = 6, label, href, note }: { value: 
   const [copied, setCopied] = useState(false);
   if (href)
     return (
-      <a className="hash live" href={href} target="_blank" rel="noreferrer" title={`${value}\nOpen on HashScan`}>
+      <a className="hash live" href={href} target="_blank" rel="noreferrer" title={`${value}\nOpen in explorer`}>
         {label && <span className="hash-label">{label}</span>}
         <span>{short(value, head, tail)}</span>
         <span className="hash-ext">↗</span>
