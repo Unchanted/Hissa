@@ -1,49 +1,22 @@
 # Arkiv entity schemas
 
-The integrated single-seller app also uses `dm.app_receipt.v1`: indexed `kind`, `listing_id`, `payment_tx`; unindexed `amount` and `at` (`u64`), plus `sealed_details` (`bytes`). It records listing/consent/revoke activity and record/contact/payout payments; private payout attribution is sealed. The payment transaction ID provides receipt deduplication. `dm.payout_intent.v1` has indexed `create_tx` and unindexed `sealed_lines`, reserving a payout before its external side effect. Both are readonly with permissionless extension disabled and maximum bounded lifetime. These are the current app's audit/earnings source; the original sale/insight/payout schemas below remain available for the separate planned paid-insights flow.
+Chain: Rabdi testnet, id 7794095. SDK `@arkiv-network/sdk` 1.0.1. Definitions: [`schemas.ts`](../packages/arkiv/src/schemas.ts) (`dm.listing`), [`app-store.ts:13-19`](../packages/arkiv/src/app-store.ts) (receipts, payout intent).
 
-These four named schemas follow [work-plan §3.2](../docs/work-plan.md) and [architecture §2.1](../docs/architecture.md). The names are SDK schema tags: they separate app entity kinds in SDK queries, but do not authenticate writes or limit public reads.
+**Owner for every entity:** the service writer wallet `0x0F58223AAfF9C6e2534aaD09a996048175C04C96` (creator and owner). Sellers do not hold wallets; they sign requests with a browser-held P-256 key and the service applies the change. Readers filter by `createdBy` + `ownedBy` = writer, so entities from other wallets are ignored.
 
-| Schema | Column | SDK type | Indexed |
-| --- | --- | --- | --- |
-| `dm.listing` | `listing_id` | `str` | yes |
-| | `domain` | `str` | yes |
-| | `region` | `str` | yes |
-| | `source` | `str` | yes |
-| | `week` | `u64` | yes |
-| | `quality_tier` | `str` | yes |
-| | `consent_insights` | `bool` | yes |
-| | `consent_sale` | `bool` | yes |
-| | `price` | `u64` | yes |
-| | `envelope_format` | `str` | no |
-| | `ciphertext` | `bytes` | no |
-| | `wrapped_key` | `bytes` | no |
-| | `sealed_seller` | `bytes` | no |
-| `dm.sale` | `listing` | `key` | yes |
-| | `buyer_ref` | `str` | yes |
-| | `payment_tx` | `str` | yes |
-| | `price` | `u64` | yes |
-| `dm.insight_receipt` | `spec_hash` | `str` | yes |
-| | `analysis_id` | `str` | yes |
-| | `domain` | `str` | yes |
-| | `cohort_bucket` | `str` | yes |
-| | `epsilon` | `dec` | yes |
-| | `k_min` | `u64` | yes |
-| | `payment_tx` | `str` | yes |
-| | `contributors_root` | `str` | yes |
-| | `sealed_contributors` | `bytes` | no |
-| `dm.payout` | `batch_id` | `str` | yes |
-| | `scheduled_tx` | `str` | yes |
-| | `sealed_lines` | `bytes` | no |
+| Schema | Editable? | Expiry | Indexed (queried by) | Not indexed |
+| --- | --- | --- | --- | --- |
+| `dm.listing` | Mutable, owner only. Consent change = `update`; revoke = `delete`. Permissionless extension off. | Seller picks 1 to 182 days (`ExpirationTime.fromSeconds`, [`publisher.ts:601`](../packages/arkiv/src/publisher.ts)) | `domain`, `region` (buyer discovery, [`Agent.tsx:98`](../apps/web/src/views/Agent.tsx)); `consent_sale=true` (buyer discovery); `consent_insights=true` + `domain` (insight cohort, [`app-store.ts:217`](../packages/arkiv/src/app-store.ts)); `listing_id` (lookup). Also indexed, shown only: `source`, `week`, `quality_tier`, `price` | `envelope_format`, `ciphertext`, `wrapped_key`, `sealed_seller` |
+| `dm.app_receipt.v1` | Readonly at creation, permissionless extension off | `ExpirationTime.max()` (about 182 days) | `kind` (listing, consent, revoke, sale as `record_purchase`, `contact_purchase`, `payout`, `insight_purchase`), `listing_id`, `payment_tx` (dedup). Ledger and earnings read all rows ([`app-store.ts:83`](../packages/arkiv/src/app-store.ts)) | `amount`, `at` (u64), `sealed_details` |
+| `dm.payout_intent.v1` | Readonly, extension off | `ExpirationTime.max()` | `create_tx` | `sealed_lines` |
 
-### Type choices
+## Payload notes
+- `ciphertext`: AES-256-GCM over JSON `v2`, which carries the full masked chat gzipped (`text_gzip`) plus facets. Browser caps it at 120 KiB ([`apps/web/src/arkiv.ts:158`](../apps/web/src/arkiv.ts)); Arkiv's per-entity `bytes` budget is 128 KiB and `wrapped_key` and `sealed_seller` share it.
+- `wrapped_key` (record key) and `sealed_seller` (payout account, contact consent, consent deadline, control key, version) are sealed to the service's P-256 key.
+- `sealed_details` holds payout account, seller share in tinybars and the HashScan link, sealed with the service key.
+- `price` is tinybars (`u64`); `week` is `YYYYWW`; `consent_*` are `bool`.
+- Receipt `kind` in `listing`, `consent` and `revoke` rows is an audit trail of Arkiv transactions; the other kinds mirror Hedera payments.
+- Everything on Arkiv is publicly readable. "Sealed" means application encryption, not Arkiv access control.
 
-- `week`, `price`, and `k_min` use `u64`; monetary `price` is in tinybars and must be handled as `bigint` when written.
-- `epsilon` uses Arkiv `dec`, a fixed-point decimal with 18 places. Pass decimal text such as `"0.2"`; do not round through a JavaScript floating-point value.
-- `listing` is a `key` because it references another entity. `spec_hash`, `buyer_ref`, `contributors_root`, and transaction/hash identifiers are indexed `str` values so callers can query them. Their hex representation fits Arkiv's 128-byte string limit. These values are public.
-- The three listing `bytes` columns and the sealed receipt/payout columns are unindexed. Arkiv `bytes` values remain publicly readable; “sealed” describes application encryption, not Arkiv access control.
-- The SDK adds the indexed `arkiv.schema` tag automatically. The application column sets above do not declare it themselves.
-
-Schema definitions live in [`packages/arkiv/src/schemas.ts`](../packages/arkiv/src/schemas.ts). The reader checks trusted creator/owner and creation flags: mutable listings and readonly receipts, both with permissionless extension disabled. Listing previews omit ciphertext and sealed blobs. Internal receipt reads retain sealed blobs for future earnings derivation; a public receipts route must project them out. Creation, application payload validation and transaction writes are outside this PR.
-
-Sources: [Arkiv schema guide](https://docs.arkiv.network/schemas/define/), [SDK 1.0.1 schema implementation](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/schema/schema.ts), [SDK 1.0.1 type definitions](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/schema/types.ts), [SDK 1.0.1 value constructors](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/schema/values.ts).
+## Legacy, unused by the app
+`dm.sale`, `dm.insight_receipt` and `dm.payout` remain in `schemas.ts` from the original plan. The running app writes none of them; `dm.app_receipt.v1` replaced them.

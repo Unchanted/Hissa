@@ -1,28 +1,46 @@
-# Arkiv friction and limits
+# Arkiv feedback: friction and asks
 
-Note: statements below about incomplete integration and "no new writes" predate the integrated app run described in the last section.
+## What should we improve today to make Arkiv better: something that got in your way, or something we don't have yet that would make building easier?
 
-These notes distinguish storage constraints from application guarantees. The read-side implementation uses SDK `1.0.1`; it is not a complete marketplace integration.
+SDK `@arkiv-network/sdk` 1.0.1, Rabdi testnet (chain 7794095). Longer earlier notes are in git history.
 
-- **Public data:** Arkiv has no read access control. Indexed values, unindexed strings and `bytes` are public. The schema tag is a namespace, not authorization. Sealed blobs depend on the application's encryption and key custody.
-- **Write ordering:** [`SerialQueue`](../packages/arkiv/src/serial-queue.ts) serializes tasks in one process and one queue instance. The service must share one queue for its writer wallet and await the transaction receipt inside each task. It does not coordinate multiple processes, persist pending work, allocate nonces across replicas, or reconcile a process crash/unknown transaction result.
-- **Payload capacity:** the SDK allows a `bytes` value up to 128 KiB, and all bytes values on an entity share that budget. Listing ciphertext, wrapped key and sealed seller data must fit together. See [SDK limits](https://docs.arkiv.network/reference/limits/) and the [SDK 1.0.1 bytes constructor](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/schema/values.ts).
-- **Hash columns:** indexed hex hashes are stored as `str` for queryability; string values are limited to 128 UTF-8 bytes. This representation does not make hashes confidential or prove their contents.
-- **Expiry and deletion:** schema definitions do not set entity lifetime. Arkiv expiry/deletion is not secure erasure; ciphertext may survive in transaction history. Enforce release eligibility in the service as described in [architecture §2.2–2.3](../docs/architecture.md).
-- **Receipt retention:** receipts also expire. `ExpirationTime.max()` is roughly 182 days from inclusion, not permanent storage. Earnings history and replay detection need an agreed retention/renewal policy and a bounded payment validity window.
-- **Pagination:** `$key` ordering and continuation avoid offset shifts but do not create a snapshot. New keys below the continuation boundary can be missed; callers must bound scans and treat each page as a current-state observation. Strict schema mismatch handling prevents silently skipped rows from hiding continuation keys.
-- **Mutable provenance:** listing consent needs mutable entities. Creator/owner checks depend on exclusive platform custody and a no-transfer policy; they cannot detect transfer-away/edit/transfer-back history. Receipts should be readonly at creation. Both entity kinds disable permissionless extension.
-- **Payment lookup:** `paymentUsed` checks the two receipt kinds. It neither reserves a payment nor makes the release/write sequence atomic. Concurrency and restart protection belong to the coordinated paid flow, which is not implemented here.
+### Confirmed by the team
 
-The package pins SDK `1.0.1`, `viem` `2.57.16` and TypeScript `5.9.3`. Deterministic SDK fixtures exercise read behavior separately from funded integration evidence. On 6 November 2026, the public RPC chain-ID check returned Rabdi `7794095`; SDK queries for all four schemas scoped to the probe writer succeeded at blocks 300455–300456 and returned zero rows. These empty results establish query compatibility, not populated data decoding. No new writes, receipt waits, gas measurements, encryption round-trips or paid flows have been tested in this PR. Historical funded probe results remain in [the test findings](../docs/arkiv-test-findings-2026-11-06.md).
+#### 1. No index or vector embedding for semantic search
+- **Wanted:** a buyer types an idea ("people who gave up on a skincare routine") and gets similar listings back.
+- **Missing:** Arkiv has no vector type and no similarity query. Attributes are exact-match or range only (`eq`, `gt`, ...).
+- **Workaround:** coarse public tags (`domain`, `region`, `source`, `week`) on the entity, plus off-chain classification by 0G models that turns the idea into those tags ([`Agent.tsx:76`](../apps/web/src/views/Agent.tsx), [`reader.ts:114`](../packages/arkiv/src/reader.ts)). Finer matching happens after download, client side.
+- **Ask:** a native vector attribute or ANN index, or at least a documented pattern for pairing Arkiv entities with an external index.
 
-The final `createArkivReader` smoke check also passed against the public RPC: the historical deleted probe listing returned `null`, all four listing/receipt page methods returned empty pages, and an unused synthetic payment identifier returned `false`. Populated data, pagination, rejection paths and decoding were checked with SDK transport fixtures (`npm test`, eight tests total including the foundation tests); `npm run typecheck` passed. No signing key or access key was loaded for the live reads.
+#### 2. No joins: receipts, listings and payouts need several round trips
+- **Wanted:** "what did seller X earn?" as one query across receipts, listings and payout records.
+- **Missing:** queries touch one schema and cannot follow a reference. A listing's seller data is inside its sealed blob, so even the lookup needs a second fetch.
+- **Workaround:** client-side joins in [`app-store.ts`](../packages/arkiv/src/app-store.ts):
+  - `receipts()` (line 83) pages every `dm.app_receipt.v1` row, up to 20 pages of 100.
+  - `earnings()` (line 107) folds shares and payouts per payout account in memory.
+  - `browse()` (line 197) runs one `dm.listing` query, then calls `listing()` (line 70) once per hit for an extra `queryListings` + `getListing`.
+  - `reservePayout()` (line 261) adds a `dm.payout_intent.v1` query and compares it against receipts.
+- **Ask:** follow a `key` reference inside a query, or batch-get by many keys in one call.
 
-Sources: [SDK 1.0.1 expiration helpers](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/utils/expirationTime.ts), [query builder](https://unpkg.com/@arkiv-network/sdk@1.0.1/src/query/queryBuilder.ts), and [the implementation gates](../docs/work-plan.md#6-arkiv-implementation-gates-skills-review-6-november-2026).
+### Other friction (draft, awaiting team approval)
 
-## Integrated app run (7 November 2026)
+## When something broke, what did you expect, what happened, and how can we reproduce it?
+Broken or surprising behaviour from the list below. Repros marked (code) come from reading the code and were not re-run:
+- **Cost cap / gas estimate:** expected a listing publish to succeed; got a generic "Arkiv unavailable". Repro: publish tens of KiB with `ARKIV_MAX_TX_COST_WEI` low.
+- **Stale lock:** expected a clean restart after a kill; the next start refused to open. Repro: `kill -9` the API, start it again.
+- **Concurrent writers:** expected two processes on one wallet to coexist; got a nonce conflict. Repro (code): run two publishers on one key.
+- **Missed rows mid-scan:** expected keyset paging to see every row; keys inserted below the cursor were missed. Repro (code): insert while paging.
 
-- The demo API published encrypted listings to Rabdi through the confirmed publisher. Example listing id `lst_eebc6757`, listing receipt tx `0x735f87614fbfff16006b9c04e546a647716322e2dca072cbfc0bf9932526146d` ([explorer](https://rabdi.explorer.arkiv.network/tx/0x735f87614fbfff16006b9c04e546a647716322e2dca072cbfc0bf9932526146d)).
-- Listing records are v2: the full masked chat is gzipped inside the AES-GCM ciphertext. About 68 KiB for a 129k-character export, under the 128 KiB entity cap.
-- The default `ARKIV_MAX_TX_COST_WEI` was raised to 0.02 GLM because larger entities need more than 1M gas.
-- If the API is killed, a stale `publisher.lock` is left behind. An operator must remove it after confirming no writer is running.
+Full list:
+
+- **No read ACL.** All attributes and `bytes` are public; the schema tag is a namespace, not access control. We encrypt (AES-GCM) in the browser and keep only coarse tags public.
+- **128 KiB per entity.** All `bytes` values share it. We gzip the full masked chat inside the ciphertext and cap ciphertext at 120 KiB ([`apps/web/src/arkiv.ts:158`](../apps/web/src/arkiv.ts)); a 129k-character export is about 68 KiB. Bigger exports must be split.
+- **Gas estimate vs cost cap looked like "Arkiv unavailable".** Larger entities need over 1M gas; the estimate exceeded our `ARKIV_MAX_TX_COST_WEI` and the API reported a generic unavailable error. Repro: publish a listing of tens of KiB with a low cap. We raised the cap to 2e16 wei ([`.env.example`](../.env.example)). Ask: a typed error that includes estimated cost.
+- **Stale `publisher.lock` after a kill.** `kill -9` on the API leaves the lock; the next start refuses to open until an operator removes it by hand ([`journal.ts`](../packages/arkiv/src/journal.ts)).
+- **Single-writer nonce ordering.** Two writers on one wallet collide on nonces. We serialise through one process ([`serial-queue.ts`](../packages/arkiv/src/serial-queue.ts)) and journal every operation. Ask: nonce-safe multi-writer guidance or a built-in queue.
+- **Expiry cap about 182 days.** `ExpirationTime.max()` is not permanent, so receipts and earnings history need a renewal plan ([`publisher.ts:40`](../packages/arkiv/src/publisher.ts)).
+- **Pagination has no snapshot.** `$key` keyset paging avoids offset shifts, but keys inserted below the cursor are missed mid-scan.
+- **Deleted or expired data is not erased.** Ciphertext stays in transaction history, so revoke cannot recall bytes already read.
+- **Public RPC is heavily rate limited without an access key** (the SDK prints this warning). Fine for the judge query, tight for a live app.
+- **Mutable provenance.** Creator/owner checks cannot detect transfer-away, edit, transfer-back. We rely on exclusive wallet custody.
+- **No atomic check-then-write.** Payment-dedup lookup (`eq("payment_tx")`) and the receipt write are separate steps; we guard with the serial queue and a settlement outbox ([`settlement-outbox.ts`](../packages/arkiv/src/settlement-outbox.ts)).

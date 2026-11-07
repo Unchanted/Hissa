@@ -55,7 +55,13 @@ Verified parse: beauty, 18-24, IN-west, abandoned. Om's listing should appear lo
 
 ## Expected outcome
 
-The report runs on the seed panel plus Om (price is the biggest driver, "no visible results" second, a tail of irritation/texture/packaging). The seed panel carries price and results themes but nothing on shipping fees or trial sizes, so expect **Partly supported** (price is real, trial-size demand is only indirectly evidenced). Read whatever verdict appears; do not claim a fixed one. Om earns a share of the 80% contributor split, visible under "YOUR HISSA".
+Verified live on hissa.tech (7 Nov 2026):
+
+- Seller: masking hid every name, place, phone number and email (`[PERSON_n]`, `[PLACE_n]`, `[PHONE_1]`, `[EMAIL_1]`). 0G classified it `beauty/skincare/oily-acne-prone`, 18-24, budget high (glm-5.3, sealed, 7.4 s). Published as `lst_8bf04f0d` (beauty, IN-west).
+- Validate an idea: cohort 1 real seller + 69 seed panel. Agent paid 2 ℏ over x402, 6 sealed 0G calls ($0.0014). Verdict **Supported by the data**: price and value ≈43%, product performance ≈35%, other ≈22%; 1.6 ℏ split across 70 people.
+- Buy training data: Arkiv query returned 2 beauty listings; the agent paid 1 ℏ each over x402 (logged to HCS), both unlocked, Om's record shows his masked chat and facets, **Download .jsonl** works.
+
+The verdict can vary between runs (noise and model output). Read whatever appears; do not claim a fixed one. Om earns a share of the 80% contributor split, visible under "YOUR HISSA".
 
 ## Fallbacks
 
