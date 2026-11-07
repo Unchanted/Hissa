@@ -24,21 +24,16 @@ SDK `@arkiv-network/sdk` 1.0.1, Rabdi testnet (chain 7794095). Longer earlier no
 
 ### Also hit while building
 
-#### 3. 128 KiB per entity made us choose between the full chat and one entity
-- **Wanted:** one listing = one seller's full masked chat, encrypted.
-- **Happened:** all `bytes` on an entity share 128 KiB. A 129k-character WhatsApp export only fit after gzip inside the ciphertext (about 68 KiB); anything larger is refused in the browser before publishing ([`apps/web/src/arkiv.ts:158`](../apps/web/src/arkiv.ts)).
-- **Ask:** a documented pattern for payloads over the limit (chunked entities that reference a parent, or a pointer to blob storage such as Swarm), so every app doesn't invent its own.
+#### 3. The safe-write recipe lives in a sample, not in the SDK
+- **Wanted:** know a write's gas and cost before signing, and send it with limits that won't run out on a large entity.
+- **Happened:** SDK 1.0.1 estimates gas inside `sendArkivTransaction` but exposes no estimate or prepare call. The working recipe (estimate at `latest`, gas = max(1M, 2 × estimate), stay under half the block gas limit, explicit nonce and gas price) is in the [`arkiv-encryption` README and sample wallet transport](https://github.com/SantiagoDevRel/arkiv-encrypted-entities), not in the SDK. We copied it into [`packages/arkiv/src/estimate.ts`](../packages/arkiv/src/estimate.ts) with a custom viem transport that captures `eth_estimateGas` and blocks signing.
+- **Ask:** ship that recipe in the SDK: `estimateCreateEntity()` / `estimateUpdateEntity()` returning gas and cost, or a `prepare` step that returns an unsigned transaction.
 
-#### 4. No way to get the cost of a write before sending it
-- **Wanted:** check "will this listing cost more than our cap?" before signing, because larger entities cost several times more gas than small ones.
-- **Happened:** SDK 1.0.1 estimates gas inside `sendArkivTransaction` (with headroom) but exposes no estimate or dry-run call for entity writes. We wrote a custom viem transport that lets the SDK build the transaction, captures `eth_estimateGas`, and blocks signing ([`packages/arkiv/src/estimate.ts`](../packages/arkiv/src/estimate.ts)).
-- **Ask:** `estimateCreateEntity()` / `estimateUpdateEntity()` (gas and cost), or a `prepare` step that returns an unsigned transaction.
-
-#### 5. Encryption is left entirely to each app
-- **Wanted:** private payloads with public tags (the normal case for user data).
-- **Happened:** Arkiv has no read access control, which is fine, but there is no SDK helper either, so we wrote our own envelope encryption (AES-GCM payload, wrapped key, sealed seller field).
-- **Ask:** a small, audited helper for "encrypted `bytes` + public attributes" in the SDK, with a recommended envelope format.
+#### 4. `arkiv-encryption` covers one key holder, not sharing
+- **Wanted:** seller encrypts in the browser; only our release service can open it; it re-releases to a buyer after payment. Usual shape for any data marketplace.
+- **Happened:** `arkiv-encryption` (AES-256-GCM, `application/vnd.arkiv.encrypted.v1`) encrypts with one symmetric key and has no way to wrap that key to a recipient's public key, and no associated data to bind a ciphertext to its listing. We kept its envelope format but wrote our own ECDH P-256 + HKDF key wrap (`sealTo` in [`apps/web/src/arkiv.ts`](../apps/web/src/arkiv.ts)) and put the listing id inside the encrypted record to bind it.
+- **Ask:** `wrapKey(recipientPublicKey)` / `unwrapKey()` and optional AAD in `arkiv-encryption`.
 
 ## When something broke, what did you expect, what happened, and how can we reproduce it?
 
-- **Large listing failed to publish.** Expected: a 68 KiB listing publishes like a 5 KiB one. Happened: the gas estimate was over 500k (our reserve of 2× estimate passed the 1M gas that our 0.001 GLM cap allows at 1 gwei), a cap we had picked from small test entities, so the publish was refused. The cap was ours, but we only found the real cost by failing (see item 4). Repro: publish an entity with ~60 KiB of `bytes`, compare its gas to a ~5 KiB entity (219,256 gas in our [test findings](../docs/arkiv-test-findings-2026-11-06.md)).
+- **Large listing failed to publish.** Expected: a 68 KiB listing publishes like a 5 KiB one. Happened: the gas estimate was over 500k (our reserve of 2× estimate passed the 1M gas that our 0.001 GLM cap allows at 1 gwei), a cap we had picked from small test entities, so the publish was refused. The cap was ours, but we only found the real cost by failing (see item 3). Repro: publish an entity with ~60 KiB of `bytes`, compare its gas to a ~5 KiB entity (219,256 gas in our [test findings](../docs/arkiv-test-findings-2026-11-06.md)).
