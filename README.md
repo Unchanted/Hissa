@@ -12,7 +12,7 @@ Hissa is a user-owned data marketplace that connects the two sides.
 
 **For people who provide data.** You upload a chat export (ChatGPT, Claude, WhatsApp, Telegram and more). Your browser keeps only your own messages and masks names, phone numbers and places before anything leaves the device. 0G Private Computer extracts structured insights inside a TEE. The record is encrypted and listed on Arkiv with only coarse public tags, your consent choices and an expiry date. You can revoke consent at any time, and you earn rewards whenever your data is used.
 
-**For AI companies that buy data.** A merchant AI agent discovers listings on Arkiv, then pays for data or insights over x402 on Hedera, on its own and within a spending budget, with no human approval. Every payment is settled on Hedera and logged to an HCS topic. The buyer receives the decrypted, masked data for AI training or an anonymised insight report. Payments flow back to the users who contributed.
+**For AI companies that buy data.** A merchant AI agent discovers listings on Arkiv, then pays for data or insights over x402 on Hedera, on its own and within a spending budget, with no human approval. Every payment is settled on Hedera, and payments are logged to an HCS topic. The buyer receives the decrypted, masked data for AI training or an anonymised insight report. Payments flow back to the users who contributed.
 
 **Built on**
 - **0G Private Computer:** private inference on masked text, so raw data is never exposed.
@@ -71,19 +71,47 @@ ZG_CHAT_MODELS=0gm-1.0-35b-a3b npm run demo:api # cheap rehearsals on one model
 
 ## Hedera: x402 payments by an autonomous agent (working, testnet)
 
-A merchant AI agent discovers listings, then buys records and insight reports over
-**x402**, paying **HBAR on Hedera testnet** through the **Blocky402** facilitator,
-with no human approval. Each payment is checked on the mirror node and appended to
-an **HCS topic** that only the agent can write to.
+**Tracks:** primary *AI Agents That Pay: x402 on Hedera* (an agent pays per request in HBAR over x402 with no human approval); secondary *No Solidity Allowed: Build with Hedera SDKs* (JS SDK, HCS, Schedule Service and mirror node; no Solidity contracts).
 
-| | |
+### Live flow (https://hissa.tech + https://api.hissa.tech)
+
+1. **Discovery.** The agent queries listings on Arkiv (free). Unknown or non-consented listings and too-small insight cohorts are refused before any 402, so no money moves.
+2. **402 quote.** The agent requests a paid route (`GET /api/records/:id` 1 ℏ, `POST /api/contact/:id` 0.5 ℏ, `POST /api/insights/:id` 2 ℏ). The server answers HTTP 402 with a `PAYMENT-REQUIRED` header.
+3. **Policy check, then automatic payment.** The agent checks the per-purchase cap, the run budget and the daily cap. If all pass, it signs an HBAR transfer with its own key, with no human approval. If any fails, it aborts before signing.
+4. **Retry.** The agent repeats the request with a `PAYMENT-SIGNATURE` header.
+5. **Settlement.** The Blocky402 facilitator verifies the signed transfer and settles it on Hedera testnet.
+6. **Release.** The handler's output is released only after settlement. If the 0G run fails, the handler fails, nothing settles and the buyer is not charged.
+7. **Receipt.** The payment receipt is written to Arkiv.
+8. **HCS log.** A message is submitted to the HCS topic. This is best effort: on failure the API logs a warning and does not retry from a durable queue.
+9. **Contributor share.** 80% of the price is credited to the contributing sellers.
+10. **Payout.** A seller's **Pay out** click creates a Hedera Schedule Service transaction that moves the owed HBAR from the treasury to the seller.
+
+The agent routes `/agent/buy`, `/agent/contact` and `/agent/insight` run this flow on the server. The server derives each purchase's attribution from the route actually served, serializes agent purchases through one payer, and owns the budget cap.
+
+### Hedera services used
+
+| Service | How we use it |
 | --- | --- |
-| Network | Hedera testnet (`hedera:testnet`), facilitator `https://api.testnet.blocky402.com` |
-| Platform treasury (`payTo`) | [`0.0.10453173`](https://hashscan.io/testnet/account/0.0.10453173) |
-| Merchant agent | [`0.0.11342909`](https://hashscan.io/testnet/account/0.0.11342909) |
-| Agent payment log (HCS) | [`0.0.11342910`](https://hashscan.io/testnet/topic/0.0.11342910) |
+| x402 `exact` scheme | HBAR (asset `0.0.0`), amounts in tinybars, network `hedera:testnet`; facilitator Blocky402 (`https://api.testnet.blocky402.com`), fee payer [`0.0.7162784`](https://hashscan.io/testnet/account/0.0.7162784) |
+| Consensus Service (HCS) | Payment log on topic [`0.0.11342910`](https://hashscan.io/testnet/topic/0.0.11342910); only the agent can submit |
+| Schedule Service | Seller payouts (`/api/payouts`): a scheduled transfer treasury → seller |
+| Mirror node | Verifies each payment (status, debited and credited accounts) |
+| JS SDK | `@hiero-ledger/sdk` for clients, topic messages and scheduled transfers |
 
-**Settled x402 payments** (agent → treasury; full run in [`evidence/hedera-agent-run.json`](evidence/hedera-agent-run.json)):
+| Account | ID |
+| --- | --- |
+| Merchant agent (payer) | [`0.0.11342909`](https://hashscan.io/testnet/account/0.0.11342909) |
+| Platform treasury (`payTo`) | [`0.0.10453173`](https://hashscan.io/testnet/account/0.0.10453173) |
+| Seller (payout recipient) | [`0.0.10502605`](https://hashscan.io/testnet/account/0.0.10502605) |
+| Facilitator fee payer | [`0.0.7162784`](https://hashscan.io/testnet/account/0.0.7162784) |
+
+The fee payer pays the network fee; the HBAR moves from the agent's account to the treasury in the same transfer.
+
+### Evidence
+
+Recent live-API payment: a 2 ℏ insight report, [`0.0.7162784@1794007006.481801021`](https://hashscan.io/testnet/transaction/0.0.7162784-1794007006-481801021).
+
+Earlier CLI fixture run, older prices (agent → treasury; all three confirmed on the mirror node as `SUCCESS`; full run in [`evidence/hedera-agent-run.json`](evidence/hedera-agent-run.json)):
 
 | What | HBAR | Hedera transaction ID | HCS # |
 | --- | --- | --- | --- |
@@ -91,32 +119,21 @@ an **HCS topic** that only the agent can write to.
 | Record `lst_91c2` (silver) | 1 | [`0.0.7162784@1793985304.420859908`](https://hashscan.io/testnet/transaction/0.0.7162784-1793985304-420859908) | 2 |
 | Insight report `abandonment-drivers` | 3 | [`0.0.7162784@1793985310.661395447`](https://hashscan.io/testnet/transaction/0.0.7162784-1793985310-661395447) | 3 |
 
-`0.0.7162784` is the Blocky402 fee payer: it pays the network fee, while the HBAR
-moves from the agent's account to the treasury in the same transfer.
+Payout: [schedule `0.0.11344252`](https://hashscan.io/testnet/schedule/0.0.11344252) executed, sending 1.2 ℏ from treasury `0.0.10453173` to seller `0.0.10502605`.
 
-### Payment flow
+Also on HashScan: [HCS topic `0.0.11342910`](https://hashscan.io/testnet/topic/0.0.11342910) and [agent account `0.0.11342909`](https://hashscan.io/testnet/account/0.0.11342909).
 
-```
-agent ── GET /api/listings (free) ───────────────────────────► server
-agent ── GET /api/records/:key ──────────────────────────────► 402 + PAYMENT-REQUIRED (price by tier)
-agent    spending controls: per-purchase cap, run budget, daily cap → abort or sign
-agent ── retry with PAYMENT-SIGNATURE (signed HBAR transfer) ─► server ─► Blocky402 verify + settle on Hedera
-agent ◄─ 200 + record + PAYMENT-RESPONSE (Hedera tx ID) ───────
-agent    mirror node check → HCS topic message (payment log)
-```
+### Two ways to run
 
-Unknown or non-consented listings and too-small insight cohorts are refused
-**before** any 402, so no money moves.
+**(a) Live web app (preferred).** Open https://hissa.tech, go to **Buyer**, and run **Check against real data** or **Find data**. The page calls https://api.hissa.tech, which pays through x402 on Hedera testnet. Locally: `npm run demo:api` and `npm run demo:web` (see Live demo above).
 
-### Run it
-
-Requires Node 20+ and one ECDSA Hedera testnet account ([portal.hedera.com](https://portal.hedera.com)).
+**(b) CLI fixture demo.** Requires Node 20+ and one ECDSA Hedera testnet account ([portal.hedera.com](https://portal.hedera.com)). It uses the fixture listings in `apps/server/src/fixtures.ts` and the older prices, and does not run against the live API.
 
 ```bash
 npm install
 cp .env.example .env          # set HEDERA_TREASURY_ID and HEDERA_TREASURY_KEY (ECDSA)
 npm run hedera:setup          # creates the agent account (30 HBAR) and the HCS topic; idempotent
-npm run hedera:server         # marketplace API with the x402 paywall on :4021
+npm run hedera:server         # fixture marketplace with the x402 paywall on :4021
 npm run hedera:agent          # in a second terminal: the agent buys 2 records + 1 report
 ```
 
@@ -124,16 +141,18 @@ Try the budget cap: `AGENT_BUDGET_HBAR=0.5 npm run hedera:agent` (every payment 
 
 | File | Role |
 | --- | --- |
+| `apps/server/src/api.ts` | Integrated API: paywalled routes, `/agent/*` routes, `/api/payouts`, HCS logging |
 | `packages/pay/src/paywall.ts` | Hono x402 middleware, `ExactHederaScheme`, settlement callback |
 | `packages/pay/src/payer.ts` | Agent's x402 `fetch` with spending controls |
-| `packages/pay/src/hcs.ts` | HCS payment log |
 | `packages/pay/src/hedera.ts` | Clients, HashScan links, mirror-node verification |
-| `packages/pay/scripts/setup.ts` | Creates the agent account and the HCS topic |
-| `apps/server/src/pay-demo.ts` | Paid routes `GET /api/records/:key`, `POST /api/insights/:analysisId` |
-| `apps/agent/src/index.ts` | The autonomous merchant agent |
+| `apps/agent/src/index.ts` | CLI merchant agent (fixture run) |
+| `apps/server/src/pay-demo.ts` | Old fixture server for the CLI demo |
 
-Listings, records and reports are still fixtures (`apps/server/src/fixtures.ts`)
-until the Arkiv and 0G lanes are wired in.
+### Known limits
+
+- The `/agent/*` routes are a public demo agent with no user authentication. Spend is bounded by the server's per-purchase, run and daily caps, on testnet.
+- HCS delivery is best effort (see step 8).
+- Telegram delivery is simulated; the 0.5 ℏ payment is real.
 
 ## Arkiv
 
