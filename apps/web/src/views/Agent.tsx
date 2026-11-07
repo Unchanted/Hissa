@@ -145,6 +145,8 @@ export function Agent() {
       if (live) {
         try {
           const paid = await api.buy(r.listingId, budget - spent);
+          // The agent's own spending-policy check (per-purchase, run and daily caps), run on the server before it signs.
+          for (const line of paid.policy ?? []) p(line, "dim");
           tx = paid.txId;
           href = paid.hashscan;
           delivered = paid.record ? { ...r, ...paid.record } : { ...r, signals: [], events: [], excerpt: "" };

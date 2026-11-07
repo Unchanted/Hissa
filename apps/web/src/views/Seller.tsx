@@ -314,6 +314,27 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
 
   const spans = mask?.spans ?? [];
   const order = new Map(spans.map((s, i) => [s.ph, i]));
+  // Glide down the chat while names are masked, so the masking is visible without a page-long box.
+  const chatRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el || phase < 1) return;
+    el.scrollTop = 0;
+    const duration = Math.max(2500, order.size * 220 + 1500);
+    let raf = 0;
+    const start = performance.now() + 400;
+    const step = (now: number) => {
+      const t = Math.min(1, Math.max(0, (now - start) / duration));
+      el.scrollTop = (el.scrollHeight - el.clientHeight) * (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    const stop = () => cancelAnimationFrame(raf);
+    el.addEventListener("wheel", stop, { once: true });
+    el.addEventListener("touchstart", stop, { once: true });
+    return () => { stop(); el.removeEventListener("wheel", stop); el.removeEventListener("touchstart", stop); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase >= 2, chat]);
   const chips = facetChips(facets);
   const needsReview = mask?.mode === "rules";
   let selfIndex = 0;
@@ -329,7 +350,7 @@ function Mask({ chat, onDone }: { chat: ChatData; onDone: (review: Review) => vo
           </span>
         }
       >
-        <div className="chat">
+        <div className="chat chat-scroll" ref={chatRef}>
           {chat.lines.slice(0, DISPLAY_LINES).map((line, i) => {
             const dropped = phase >= 1 && line.role !== "self";
             const mine = line.role === "self" ? selfIndex++ : -1;
@@ -515,7 +536,7 @@ function Publish({ chat, review, initialDraft, onDone }: { chat?: ChatData; revi
       log.push("seal record key and seller controls to service key", "ok");
       log.push("POST /api/listings · signed version 0", "arkiv");
       const result = await api.registerListing(upload);
-      log.push(<>live ✓ <Hash value={result.txHash} /></>, "arkiv");
+      log.push(<>live ✓ <Hash value={result.txHash} href={`https://rabdi.explorer.arkiv.network/tx/${result.txHash}`} /></>, "arkiv");
       clearPendingDraft();
       update((s) => withListings(s, [
         ...s.listings.filter((x) => x.listingId !== result.listingId),
@@ -760,7 +781,7 @@ function ListingCard({ l, busy }: { l: Listing; busy: boolean }) {
       className={`listing-card${l.live ? " live" : " dead"}`}
       aside={
         <span className="row gap-s">
-          <Hash value={l.entityKey} label="entity" />
+          <Hash value={l.entityKey} label="entity" href={`https://rabdi.explorer.arkiv.network/entity/${l.entityKey}`} />
           {l.live && <i className="pulse" />}
         </span>
       }

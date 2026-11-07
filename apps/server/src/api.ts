@@ -27,6 +27,7 @@
  *   POST   /api/insights/:id     x402    anonymised insight report (0G, k ≥ 50, noised)
  *   POST   /agent/insight                agent pays for a report; 80% shared with contributors
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -68,6 +69,31 @@ const INSIGHT_PRICE = hbarToTinybars(2);
 const K_MIN = 50;
 const PER_PURCHASE = hbarToTinybars(Number(process.env["AGENT_MAX_PER_PURCHASE_HBAR"] ?? 5));
 const DAILY = hbarToTinybars(Number(process.env["AGENT_DAILY_CAP_HBAR"] ?? 25));
+/** Most one agent run may spend, whatever budget the caller sends. The server owns this cap. */
+const RUN_CAP = hbarToTinybars(Number(process.env["AGENT_RUN_CAP_HBAR"] ?? 20));
+const LISTING_ID = /^lst_[a-z0-9]{2,64}$/;
+
+/** Caller's remaining run budget, clamped to the server's cap; anything invalid becomes 0 (every payment aborts). */
+function serverBudget(hbar: unknown, fallback?: number): bigint {
+  const n = typeof hbar === "number" ? hbar : fallback;
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return 0n;
+  const t = hbarToTinybars(n);
+  return t < RUN_CAP ? t : RUN_CAP;
+}
+
+/**
+ * One payment at a time for the agent's signer: the budget and daily-cap checks happen before
+ * signing and the spend is recorded after settlement, so concurrent purchases could both pass.
+ */
+let agentQueue: Promise<unknown> = Promise.resolve();
+function serialPay<T>(task: () => Promise<T>): Promise<T> {
+  const run = agentQueue.then(task, task);
+  agentQueue = run.catch(() => undefined);
+  return run;
+}
+
+/** The route the server actually matched for a paid request (not the client-supplied resource URL). */
+const paidRoute = new AsyncLocalStorage<string>();
 /** Keep the agent funded between rehearsals: top up from the treasury below this. */
 const AGENT_MIN_HBAR = 12;
 const AGENT_TOPUP_TO_HBAR = 30;
@@ -221,6 +247,9 @@ app.use("/api/contact/:id", async (c, next) => {
   await next();
 });
 
+// Remember the real request path so settlement attribution never trusts payment metadata.
+app.use("/api/*", (c, next) => paidRoute.run(c.req.path, next));
+
 app.use(
   createPaywall({
     payTo: treasuryId,
@@ -230,10 +259,13 @@ app.use(
       "POST /api/insights/:id": { description: "One anonymised insight report (0G Private Computer, k ≥ 50, noised)", priceTinybars: INSIGHT_PRICE },
     },
     onSettled: async (p) => {
-      const id = p.resource.split("/").pop() ?? "";
-      const insight = p.resource.includes("/insights/");
+      const route = /^\/api\/(records|contact|insights)\/([A-Za-z0-9_-]{1,80})$/.exec(paidRoute.getStore() ?? "");
+      if (!route) return console.warn(`[x402] settled ${p.txId} on an unrecognised route; resource claimed ${p.resource}`);
+      const [, product, id = ""] = route;
+      if (!p.resource.endsWith(`/api/${product}/${id}`)) console.warn(`[x402] ${p.txId}: payment resource ${p.resource} differs from route; using route`);
+      const insight = product === "insights";
       const share = insight ? (insightJobs.get(id)?.shareTinybars ?? 0n) : undefined;
-      const payment = await settlementOutbox.remember({ kind: insight ? "insight_purchase" : p.resource.includes("/contact/") ? "contact_purchase" : "record_purchase",
+      const payment = await settlementOutbox.remember({ kind: insight ? "insight_purchase" : product === "contact" ? "contact_purchase" : "record_purchase",
         listing: id, txId: p.txId, hashscan: hashscan.tx(p.txId), amountTinybars: p.amountTinybars, at: new Date().toISOString(),
         ...(share !== undefined ? { shareTinybars: share.toString() } : {}) });
       await store.recordPayment(payment);
@@ -261,14 +293,14 @@ app.post("/api/insights/:id", async (c) => {
   }
 });
 
-async function agentPays(kind: AgentPaymentLog["kind"], listingId: string, budgetLeftHbar: number, init?: RequestInit) {
+async function agentPays(kind: AgentPaymentLog["kind"], listingId: string, budget: bigint, init?: RequestInit) {
   const path = kind === "contact_purchase" ? "contact" : "records";
   const resource = `${self}/api/${path}/${listingId}`;
   const lines: string[] = [];
-  const payer = new AgentPayer(agentId, agentKey, { budget: hbarToTinybars(budgetLeftHbar), perPurchase: PER_PURCHASE, daily: DAILY }, (m) =>
+  const payer = new AgentPayer(agentId, agentKey, { budget, perPurchase: PER_PURCHASE, daily: DAILY }, (m) =>
     lines.push(m.trim()),
   );
-  const r = await payer.buy<{ record?: unknown }>(resource, init);
+  const r = await serialPay(() => payer.buy<{ record?: unknown }>(resource, init));
   const receipt: Receipt = {
     kind,
     listing: listingId,
@@ -295,10 +327,16 @@ async function agentPays(kind: AgentPaymentLog["kind"], listingId: string, budge
   return { ...receipt, policy: lines, ...(r.body?.record ? { record: r.body.record } : {}) };
 }
 
+// The demo agent's signer lives on this server: only browser calls from allowed origins may drive it.
+// (Not user authentication; spend is bounded by the run, per-purchase and daily caps.)
+app.use("/agent/*", async (c, next) => (c.req.header("Origin") ? next() : c.json({ error: "Browser origin required" }, 403)));
+app.use("/api/payouts", async (c, next) => (c.req.header("Origin") ? next() : c.json({ error: "Browser origin required" }, 403)));
+
 app.post("/agent/buy", async (c) => {
-  const b = (await c.req.json()) as { listingId: string; budgetLeftHbar: number };
+  const b = (await c.req.json().catch(() => ({}))) as { listingId?: unknown; budgetLeftHbar?: unknown };
+  if (typeof b.listingId !== "string" || !LISTING_ID.test(b.listingId)) return c.json({ error: "valid listingId required" }, 400);
   try {
-    return c.json(await agentPays("record_purchase", b.listingId, b.budgetLeftHbar));
+    return c.json(await agentPays("record_purchase", b.listingId, serverBudget(b.budgetLeftHbar)));
   } catch (e) {
     const msg = (e as Error).message;
     return c.json({ error: errorText(msg) }, errorStatus(msg) as 403);
@@ -306,10 +344,12 @@ app.post("/agent/buy", async (c) => {
 });
 
 app.post("/agent/contact", async (c) => {
-  const b = (await c.req.json()) as { listingId: string; message: string; budgetLeftHbar: number };
+  const b = (await c.req.json().catch(() => ({}))) as { listingId?: unknown; message?: unknown; budgetLeftHbar?: unknown };
+  if (typeof b.listingId !== "string" || !LISTING_ID.test(b.listingId)) return c.json({ error: "valid listingId required" }, 400);
+  if (typeof b.message !== "string" || !b.message.trim() || b.message.length > 1000) return c.json({ error: "message (1-1000 characters) required" }, 400);
   try {
     const init = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: b.message }) };
-    return c.json(await agentPays("contact_purchase", b.listingId, b.budgetLeftHbar, init));
+    return c.json(await agentPays("contact_purchase", b.listingId, serverBudget(b.budgetLeftHbar), init));
   } catch (e) {
     const msg = (e as Error).message;
     return c.json({ error: errorText(msg) }, errorStatus(msg) as 403);
@@ -325,9 +365,9 @@ app.post("/agent/insight", async (c) => {
   const id = `rpt_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
   insightJobs.set(id, { question: b.question.trim().slice(0, 240), ...(typeof b.hypothesis === "string" && b.hypothesis.trim() ? { hypothesis: b.hypothesis.trim().slice(0, 500) } : {}), items, real, seed });
   const resource = `${self}/api/insights/${id}`;
-  const payer = new AgentPayer(agentId, agentKey, { budget: hbarToTinybars(Number(b.budgetLeftHbar ?? 10)), perPurchase: PER_PURCHASE, daily: DAILY }, () => undefined);
+  const payer = new AgentPayer(agentId, agentKey, { budget: serverBudget(b.budgetLeftHbar, 10), perPurchase: PER_PURCHASE, daily: DAILY }, () => undefined);
   try {
-    const r = await payer.buy<{ report?: Record<string, unknown> }>(resource, { method: "POST" });
+    const r = await serialPay(() => payer.buy<{ report?: Record<string, unknown> }>(resource, { method: "POST" }));
     const at = new Date().toISOString();
     const receipt: Receipt = { kind: "insight_purchase", listing: id, txId: r.txId, hashscan: hashscan.tx(r.txId), amountHbar: tinybarsToHbar(r.amountTinybars), at };
     logHcsInBackground({ v: 1, kind: "insight_purchase", resource, listing: id, amount_tinybars: r.amountTinybars.toString(), payer: r.payer ?? agentId,
